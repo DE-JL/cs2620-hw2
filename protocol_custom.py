@@ -1,4 +1,5 @@
 from enum import Enum
+import json
 import socket
 import struct
 import time
@@ -75,6 +76,23 @@ class Authenticate:
                            self.action_type.value,
                            len(username_bytes), len(password_bytes),
                            username_bytes, password_bytes)
+    
+    def to_jsons(self):
+        data = {
+            "request_type": RequestType.AUTHENTICATE.value,
+            "action_type": self.action_type.value,
+            "username": self.username,
+            "password": self.password
+        }
+        return json.dumps(data)
+    
+    @staticmethod
+    def from_jsons(jsons):
+        data = json.loads(jsons)
+        action_type = data["action_type"]
+        username = data["username"]
+        password = data["password"]
+        return Authenticate(Authenticate.ActionType(action_type), username, password)
 
     @staticmethod
     def unpack(bytestream: bytes):
@@ -124,6 +142,27 @@ class SendMessage:
                            len(sender_bytes), len(receiver_bytes), len(body_bytes),
                            sender_bytes, receiver_bytes, body_bytes,
                            message_id_bytes, self.timestamp)
+    
+    def to_jsons(self):
+        data = {
+            "request_type": RequestType.SEND_MESSAGE.value,
+            "sender": self.sender,
+            "receiver": self.receiver,
+            "body": self.body,
+            "message_id": str(self.message_id),
+            "timestamp": self.timestamp
+        }
+        return json.dumps(data)
+    
+    @staticmethod
+    def from_jsons(jsons):
+        data = json.loads(jsons)
+        sender = data["sender"]
+        receiver = data["receiver"]
+        body = data["body"]
+        message_id = uuid.UUID(data["message_id"])
+        timestamp = data["timestamp"]
+        return SendMessage(message_id, sender, receiver, body, timestamp)
 
     @staticmethod
     def unpack(bytestream: bytes):
@@ -185,6 +224,21 @@ class DeleteMessage:
 
         return DeleteMessage(username, message_id)
 
+    def to_jsons(self):
+        data = {
+            "request_type": RequestType.DELETE_MESSAGE.value,
+            "username": self.username,
+            "message_id": str(self.message_id)
+        }
+        return json.dumps(data)
+
+    @staticmethod
+    def from_jsons(jsons):
+        data = json.loads(jsons)
+        username = data["username"]
+        message_id = uuid.UUID(data["message_id"])
+        return DeleteMessage(username, message_id)
+
 
 class ListAccounts:
     """
@@ -224,6 +278,21 @@ class ListAccounts:
         pattern = pattern_bytes.decode("utf-8")
         return ListAccounts(username, pattern)
 
+    def to_jsons(self):
+        data = {
+            "request_type": RequestType.LIST_ACCOUNTS.value,
+            "username": self.username,
+            "pattern": self.pattern
+        }
+        return json.dumps(data)
+
+    @staticmethod
+    def from_jsons(jsons):
+        data = json.loads(jsons)
+        username = data["username"]
+        pattern = data["pattern"]
+        return ListAccounts(username, pattern)
+
 
 def parse_request(header: ProtocolHeader, bytestream: bytes):
     request_type = RequestType(header.header_type)
@@ -239,8 +308,24 @@ def parse_request(header: ProtocolHeader, bytestream: bytes):
         case RequestType.DELETE_MESSAGE:
             return DeleteMessage.unpack(bytestream)
         case RequestType.LIST_ACCOUNTS:
-            return
+            return ListAccounts.unpack(bytestream)
 
+def parse_request_json(json_body):
+    data = json.loads(json_body)
+    request_type = data["request_type"]
+    match request_type:
+        case RequestType.DEBUG.value:
+            return None
+        case RequestType.AUTHENTICATE.value:
+            return Authenticate.from_jsons(json_body)
+        case RequestType.SEND_MESSAGE.value:
+            return SendMessage.from_jsons(json_body)
+        case RequestType.READ_MESSAGES.value:
+            raise Exception("Not implemented yet")
+        case RequestType.DELETE_MESSAGE.value:
+            return DeleteMessage.from_jsons(json_body)
+        case RequestType.LIST_ACCOUNTS.value:
+            return ListAccounts.from_jsons(json_body)
 
 def wire(sock: socket.socket, header_type: int, bytestream: bytes):
     """
