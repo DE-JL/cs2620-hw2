@@ -1,8 +1,7 @@
 import selectors
 import types
-import yaml
 
-from protocol_custom import *
+from protocol import *
 
 # Selectors
 sel = selectors.DefaultSelector()
@@ -14,14 +13,13 @@ def accept_wrapper(key: selectors.SelectorKey):
     :param key: Select key.
     """
     sock = key.fileobj
-
     # noinspection PyUnresolvedReferences
     conn, addr = sock.accept()
-    print(f"Accepted connection from {addr}")
+    print(f"Accepted client connection from: {addr}")
 
-    # We can store any per-connection state in 'data' if needed
-    data = types.SimpleNamespace(addr=addr)
-    sel.register(conn, selectors.EVENT_READ, data=data)
+    # Store a context namespace for this particular connection
+    ctx = types.SimpleNamespace(addr=addr)
+    sel.register(conn, selectors.EVENT_READ, data=ctx)
 
 
 def service_connection(key, mask):
@@ -31,15 +29,15 @@ def service_connection(key, mask):
     :param mask: Mask for selecting events.
     """
     sock = key.fileobj
-    data = key.data
+    ctx = key.data
 
     if mask & selectors.EVENT_READ:
         # Receive the header
         recvd = sock.recv(ProtocolHeader.SIZE, socket.MSG_WAITALL)
 
         # Check if the client closed the connection
-        if not recvd or len(recvd) < ProtocolHeader.SIZE:
-            print(f"Closing connection to {data.addr}")
+        if not recvd or len(recvd) != ProtocolHeader.SIZE:
+            print(f"Closing connection to {ctx.addr}")
             sel.unregister(sock)
             sock.close()
 
@@ -48,22 +46,22 @@ def service_connection(key, mask):
         print(f"Received header: {header}")
 
         # Receive the payload
-        bytestream = sock.recv(header.payload_size, socket.MSG_WAITALL)
+        data = sock.recv(header.payload_size, socket.MSG_WAITALL)
 
         # Parse the request
-        request = parse_request(header, bytestream)
-
-        assert request is None
-        s = bytestream.decode("utf-8")
-
-        print(f"Received DEBUG request: {s}")
+        request = parse_request(header, data)
+        if request is None:
+            s = data.decode("utf-8")
+            print(f"Received {RequestType(header.header_type)}: {s}")
+        else:
+            print(f"Received {RequestType(header.header_type)}: {request}")
 
         # TODO: set outbound
 
     if mask & selectors.EVENT_WRITE:
-        if data.outbound is not None:
-            sent = sock.send(data.outbound)
-            data.outbound = data.outbound[sent:]
+        if ctx.outbound is not None:
+            sent = sock.send(ctx.outbound)
+            ctx.outbound = ctx.outbound[sent:]
 
 
 def main():
