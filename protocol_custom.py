@@ -1,27 +1,23 @@
 from enum import Enum
 import socket
 import struct
+import time
 import uuid
 
 
-class HeaderType(Enum):
-    NOOP = 0
-    REQUEST = 1
-    RESPONSE = 2
-    LOG = 3
-
-
 class RequestType(Enum):
+    DEBUG = 0
     AUTHENTICATE = 1
     SEND_MESSAGE = 2
-    DELETE_MESSAGE = 3
-    READ_MESSAGES = 4
+    READ_MESSAGES = 3
+    DELETE_MESSAGE = 4
     LIST_ACCOUNTS = 5
     ERR = 6
 
 
 class ResponseCode(Enum):
-    OK = 0
+    DEBUG = 0
+    OK = 1
 
 
 class ProtocolHeader:
@@ -34,20 +30,20 @@ class ProtocolHeader:
     FORMAT = "!B I"
     SIZE = struct.calcsize(FORMAT)
 
-    def __init__(self, header_type=HeaderType.NOOP, size=0):
+    def __init__(self, header_type: int, payload_size=0):
         self.header_type = header_type
-        self.size = size
+        self.payload_size = payload_size
 
     def __str__(self):
-        return f"ProtocolHeader: ({self.header_type}, {self.size})"
+        return f"ProtocolHeader: ({self.header_type}, {self.payload_size})"
 
     def pack(self):
-        return struct.pack(self.FORMAT, self.header_type.value, self.size)
+        return struct.pack(self.FORMAT, self.header_type, self.payload_size)
 
     @staticmethod
     def unpack(bytestream: bytes):
-        header_type_value, size = struct.unpack(ProtocolHeader.FORMAT, bytestream)
-        return ProtocolHeader(HeaderType(header_type_value), size)
+        header_type, payload_size = struct.unpack(ProtocolHeader.FORMAT, bytestream)
+        return ProtocolHeader(header_type, payload_size)
 
 
 class Authenticate:
@@ -69,12 +65,12 @@ class Authenticate:
         self.password = password
 
     def pack(self):
-        # Encode the username and password
+        # Encode the data
         username_bytes = self.username.encode("utf-8")
         password_bytes = self.password.encode("utf-8")
 
-        # Pack the bytes together
-        pack_format = f"B I I {len(username_bytes)}s {len(password_bytes)}"
+        # Pack the data
+        pack_format = f"!B I I {len(username_bytes)}s {len(password_bytes)}"
         return struct.pack(pack_format,
                            self.action_type.value,
                            len(username_bytes), len(password_bytes),
@@ -87,11 +83,11 @@ class Authenticate:
         header_size = struct.calcsize(header_format)
         action_type_value, username_len, password_len = struct.unpack(header_format, bytestream[:header_size])
 
-        # Unpack username and password
+        # Unpack the data
         data_format = f"!{username_len}s {password_len}s"
         username_bytes, password_bytes = struct.unpack(data_format, bytestream[header_size:])
 
-        # Decode username and password
+        # Decode the data
         username = username_bytes.decode("utf-8")
         password = password_bytes.decode("utf-8")
 
@@ -103,25 +99,31 @@ class SendMessage:
     Send message operator.
     :var sender: The username of the sender.
     :var receiver: The username of the recipient.
+    :var message_id: The id of the message.
     :var body: The body (text) of the message.
+    :var timestamp: The timestamp of the message.
     """
 
-    def __init__(self, sender: str, receiver: str, body: str):
+    def __init__(self, message_id: uuid.UUID, sender: str, receiver: str, body: str, timestamp: float):
         self.sender = sender
         self.receiver = receiver
         self.body = body
+        self.message_id = message_id
+        self.timestamp = timestamp
 
     def pack(self):
-        # Encode the sender, receiver, and body
+        # Encode the data
         sender_bytes = self.sender.encode("utf-8")
         receiver_bytes = self.receiver.encode("utf-8")
         body_bytes = self.body.encode("utf-8")
+        message_id_bytes = self.message_id.bytes
 
-        # Pack the bytes together
-        pack_format = f"I I I {len(sender_bytes)}s {len(receiver_bytes)}s {len(body_bytes)}s"
+        # Pack the data
+        pack_format = f"!I I I {len(sender_bytes)}s {len(receiver_bytes)} {len(body_bytes)}s 16s d"
         return struct.pack(pack_format,
                            len(sender_bytes), len(receiver_bytes), len(body_bytes),
-                           sender_bytes, receiver_bytes, body_bytes)
+                           sender_bytes, receiver_bytes, body_bytes,
+                           message_id_bytes, self.timestamp)
 
     @staticmethod
     def unpack(bytestream: bytes):
@@ -130,16 +132,18 @@ class SendMessage:
         header_size = struct.calcsize(header_format)
         sender_len, receiver_len, body_len = struct.unpack(header_format, bytestream[:header_size])
 
-        # Unpack sender, receiver, and body
-        data_format = f"!{sender_len}s {receiver_len}s {body_len}s"
-        sender_bytes, receiver_bytes, body_bytes = struct.unpack(data_format, bytestream[header_size:])
+        # Unpack the data
+        data_format = f"!{sender_len}s {receiver_len}s {body_len}s 16s d"
+        (sender_bytes, receiver_bytes, body_bytes,
+         message_id_bytes, timestamp) = struct.unpack(data_format, bytestream[header_size:])
 
-        # Decode sender, receiver, and body
+        # Decode the data
+        message_id = uuid.UUID(bytes=message_id_bytes)
         sender = sender_bytes.decode("utf-8")
         receiver = receiver_bytes.decode("utf-8")
         body = body_bytes.decode("utf-8")
 
-        return SendMessage(sender, receiver, body)
+        return SendMessage(message_id, sender, receiver, body, timestamp)
 
 
 class DeleteMessage:
@@ -154,12 +158,12 @@ class DeleteMessage:
         self.message_id = message_id
 
     def pack(self):
-        # Encode the string and message_id
+        # Encode the data
         username_bytes = self.username.encode("utf-8")
         message_id_bytes = self.message_id.bytes
 
-        # Pack the bytes together
-        pack_format = f"I {len(username_bytes)}s 16s"
+        # Pack the data
+        pack_format = f"!I {len(username_bytes)}s 16s"
         return struct.pack(pack_format,
                            len(username_bytes),
                            username_bytes, message_id_bytes)
@@ -171,37 +175,80 @@ class DeleteMessage:
         header_size = struct.calcsize(header_format)
         username_len = struct.unpack(header_format, bytestream[:header_size])[0]
 
-        # Unpack username and message_id
+        # Unpack the data
         data_format = f"!{username_len}s 16s"
         username_bytes, message_id_bytes = struct.unpack(data_format, bytestream[header_size:])
 
-        # Decode username and message_id
+        # Decode the data
         username = username_bytes.decode("utf-8")
         message_id = uuid.UUID(bytes=message_id_bytes)
 
         return DeleteMessage(username, message_id)
 
 
-def parse_payload(header_type: HeaderType, payload: bytes):
-    match HeaderType:
-        case HeaderType.NOOP:
-            pass
-        case HeaderType.REQUEST:
-            pass
-        case HeaderType.RESPONSE:
-            pass
-        case HeaderType.LOG:
-            pass
+class ListAccounts:
+    """
+    List accounts operator.
+    :var username: The username of the user requesting accounts matching pattern.
+    :var pattern: The regex pattern to match.
+    """
+
+    def __init__(self, username: str, pattern: str):
+        self.username = username
+        self.pattern = pattern
+
+    def pack(self):
+        # Encode the data
+        username_bytes = self.username.encode("utf-8")
+        pattern_bytes = self.pattern.encode("utf-8")
+
+        # Pack the data
+        pack_format = f"!I I {len(username_bytes)}s {len(pattern_bytes)}s"
+        return struct.pack(pack_format,
+                           len(username_bytes), len(pattern_bytes),
+                           username_bytes, pattern_bytes)
+
+    @staticmethod
+    def unpack(bytestream: bytes):
+        # Unpack the header
+        header_format = "!I I"
+        header_size = struct.calcsize(header_format)
+        username_len, pattern_len = struct.unpack(header_format, bytestream[:header_size])
+
+        # Unpack the data
+        data_format = f"!{username_len}s {pattern_len}s"
+        username_bytes, pattern_bytes = struct.unpack(data_format, bytestream[header_size:])
+
+        # Decode the data
+        username = username_bytes.decode("utf-8")
+        pattern = pattern_bytes.decode("utf-8")
+        return ListAccounts(username, pattern)
 
 
-def wire(sock: socket.socket, header_type: HeaderType, bytestream: bytes):
+def parse_request(header: ProtocolHeader, bytestream: bytes):
+    request_type = RequestType(header.header_type)
+    match request_type:
+        case RequestType.DEBUG:
+            return None
+        case RequestType.AUTHENTICATE:
+            return Authenticate.unpack(bytestream)
+        case RequestType.SEND_MESSAGE:
+            return SendMessage.unpack(bytestream)
+        case RequestType.READ_MESSAGES:
+            raise Exception("Not implemented yet")
+        case RequestType.DELETE_MESSAGE:
+            return DeleteMessage.unpack(bytestream)
+        case RequestType.LIST_ACCOUNTS:
+            return
+
+
+def wire(sock: socket.socket, header_type: int, bytestream: bytes):
     """
     A utility function that implements the wire protocol.
     :param sock: Target socket.
     :param header_type: The header type.
     :param bytestream: The raw bytes of the payload.
     """
-
     header = ProtocolHeader(header_type, len(bytestream))
     sock.sendall(header.pack())
     sock.sendall(bytestream)
@@ -215,4 +262,4 @@ def send_str(sock: socket.socket, s: str):
     """
 
     s_bytes = s.encode("utf-8")
-    wire(sock, HeaderType.LOG, s_bytes)
+    wire(sock, 0, s_bytes)

@@ -9,7 +9,8 @@ sel = selectors.DefaultSelector()
 
 
 def accept_wrapper(key: selectors.SelectorKey):
-    """Accept a new client connection and register it for reading.
+    """
+    Accept a new client connection and register it for reading.
     :param key: Select key.
     """
     sock = key.fileobj
@@ -24,7 +25,11 @@ def accept_wrapper(key: selectors.SelectorKey):
 
 
 def service_connection(key, mask):
-    """Echo incoming data back to the client; close on empty data."""
+    """
+    Echo incoming data back to the client; close on empty data.
+    :param key: Connection key.
+    :param mask: Mask for selecting events.
+    """
     sock = key.fileobj
     data = key.data
 
@@ -38,10 +43,27 @@ def service_connection(key, mask):
             sel.unregister(sock)
             sock.close()
 
+        # Unpack the header
         header = ProtocolHeader.unpack(recvd)
         print(f"Received header: {header}")
 
-    # if mask & selectors.EVENT_WRITE:
+        # Receive the payload
+        bytestream = sock.recv(header.payload_size, socket.MSG_WAITALL)
+
+        # Parse the request
+        request = parse_request(header, bytestream)
+
+        assert request is None
+        s = bytestream.decode("utf-8")
+
+        print(f"Received DEBUG request: {s}")
+
+        # TODO: set outbound
+
+    if mask & selectors.EVENT_WRITE:
+        if data.outbound is not None:
+            sent = sock.send(data.outbound)
+            data.outbound = data.outbound[sent:]
 
 
 def main():
@@ -58,7 +80,6 @@ def main():
     server_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
     server_socket.bind((HOST, PORT))
     server_socket.listen()
-    server_socket.setblocking(False)
     print(f"Server listening on {HOST}:{PORT}")
 
     # Register
