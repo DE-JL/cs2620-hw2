@@ -1,7 +1,10 @@
 import selectors
+import socket
 import types
+import yaml
 
-from protocol import *
+from entity import *
+from api import *
 
 # Selectors
 sel = selectors.DefaultSelector()
@@ -17,9 +20,12 @@ def accept_wrapper(key: selectors.SelectorKey):
     conn, addr = sock.accept()
     print(f"Accepted client connection from: {addr}")
 
+    # Set the connection to be non-blocking
+    conn.setblocking(False)
+
     # Store a context namespace for this particular connection
-    ctx = types.SimpleNamespace(addr=addr)
-    sel.register(conn, selectors.EVENT_READ, data=ctx)
+    ctx = types.SimpleNamespace(addr=addr, outbound=b"")
+    sel.register(conn, selectors.EVENT_READ | selectors.EVENT_WRITE, data=ctx)
 
 
 def service_connection(key, mask):
@@ -33,16 +39,17 @@ def service_connection(key, mask):
 
     if mask & selectors.EVENT_READ:
         # Receive the header
-        recvd = sock.recv(ProtocolHeader.SIZE, socket.MSG_WAITALL)
+        recvd = sock.recv(Header.SIZE, socket.MSG_WAITALL)
 
         # Check if the client closed the connection
-        if not recvd or len(recvd) != ProtocolHeader.SIZE:
+        if not recvd or len(recvd) != Header.SIZE:
             print(f"Closing connection to {ctx.addr}")
             sel.unregister(sock)
             sock.close()
+            return
 
         # Unpack the header
-        header = ProtocolHeader.unpack(recvd)
+        header = Header.unpack(recvd)
         print(f"Received header: {header}")
 
         # Receive the payload
@@ -53,10 +60,23 @@ def service_connection(key, mask):
         if request is None:
             s = data.decode("utf-8")
             print(f"Received {RequestType(header.header_type)}: {s}")
-        else:
+
+            # Send it back
+            ctx.outbound += header.pack() + data
+        elif type(request) == GetMessagesRequest:
             print(f"Received {RequestType(header.header_type)}: {request}")
 
-        # TODO: set outbound
+            message0 = Message(sender="user0",
+                               receiver="user1",
+                               body="hello world")
+            message1 = Message(sender="user0",
+                               receiver="user2",
+                               body="hello world")
+
+            resp = GetMessagesResponse([message0, message1])
+            ctx.outbound += resp.pack()
+        else:
+            print(f"Received {RequestType(header.header_type)}: {request}")
 
     if mask & selectors.EVENT_WRITE:
         if ctx.outbound is not None:
@@ -78,6 +98,7 @@ def main():
     server_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
     server_socket.bind((HOST, PORT))
     server_socket.listen()
+    server_socket.setblocking(False)
     print(f"Server listening on {HOST}:{PORT}")
 
     # Register
