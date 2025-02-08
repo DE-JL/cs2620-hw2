@@ -78,11 +78,11 @@ class GetMessagesResponse:
 
     def pack(self) -> bytes:
         if PROTOCOL_TYPE != "json":
-            # Pack the data
+            # Pack the number of messages
             pack_format = "!I"
             data = struct.pack(pack_format, len(self.messages))
 
-            # Pack all messages sequentially
+            # Pack the messages one by one
             for message in self.messages:
                 data += message.pack()
 
@@ -91,28 +91,23 @@ class GetMessagesResponse:
             return header.pack() + data
         else:
             # TODO
-            pass
+            raise Exception("json not implemented yet")
 
     @staticmethod
     def unpack(data: bytes) -> "GetMessagesResponse":
         if PROTOCOL_TYPE != "json":
             messages = []
 
-            # First determine the number of messages
-            num_messages_format = "!I"
-            num_messages = struct.unpack_from(num_messages_format, data)[0]
-            data = data[struct.calcsize(num_messages_format):]
+            # First unpack the number of messages
+            num_messages = struct.unpack_from("!I", data)[0]
+            data = data[struct.calcsize("!I"):]
 
-            print(f"num_messages: {num_messages}")
-
-            # Process messages one by one
+            # Process the messages one by one
             for _ in range(num_messages):
                 # Read how long the message is
                 message_size_header = Header.unpack(data)
                 message_size = message_size_header.payload_size
                 data = data[Header.SIZE:]
-
-                print(f"message_size: {message_size}")
 
                 # Read and append the message
                 message = Message.unpack(data)
@@ -122,4 +117,4 @@ class GetMessagesResponse:
             return GetMessagesResponse(messages)
         else:
             # TODO
-            pass
+            raise Exception("json not implemented yet")

@@ -35,7 +35,7 @@ class Message(BaseModel):
             return header.pack() + data
         else:
             # TODO
-            pass
+            raise Exception("json not implemented yet")
 
     @staticmethod
     def unpack(data: bytes) -> "Message":
@@ -44,8 +44,6 @@ class Message(BaseModel):
             header_format = f"!I I I"
             sender_len, receiver_len, body_len = struct.unpack_from(header_format, data)
             data = data[struct.calcsize(header_format):]
-
-            print(sender_len, receiver_len, body_len)
 
             # Unpack the data
             data_format = f"!{sender_len}s {receiver_len}s {body_len}s 16s d ?"
@@ -66,4 +64,4 @@ class Message(BaseModel):
                            read=read)
         else:
             # TODO
-            pass
+            raise Exception("json not implemented yet")

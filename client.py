@@ -53,9 +53,9 @@ def test_delete_message(sock: socket.socket):
     sock.sendall(delete_msg.pack())
 
 
-def test_list_accounts(sock: socket.socket):
-    list_accs = ListAccountsRequest("user0", "*")
-    sock.sendall(list_accs.pack())
+def test_list_users(sock: socket.socket):
+    list_users = ListUsersRequest("user0", "*")
+    sock.sendall(list_users.pack())
 
 
 def main():
@@ -74,7 +74,7 @@ def main():
     test_get_messages(client_socket)
     test_send_message(client_socket)
     test_delete_message(client_socket)
-    test_list_accounts(client_socket)
+    test_list_users(client_socket)
 
     # Continuously send
     while True:

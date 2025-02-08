@@ -13,7 +13,7 @@ class RequestType(Enum):
     GET_MESSAGES = 2
     SEND_MESSAGE = 3
     DELETE_MESSAGE = 4
-    LIST_ACCOUNTS = 5
+    LIST_USERS = 5
 
 
 class ResponseType(Enum):
@@ -22,7 +22,7 @@ class ResponseType(Enum):
     GET_MESSAGES = 2
     SEND_MESSAGE = 3
     DELETE_MESSAGE = 4
-    LIST_ACCOUNTS = 5
+    LIST_USERS = 5
     ERROR = 6
 
 

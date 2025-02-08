@@ -5,7 +5,7 @@ from .get_messages import GetMessagesRequest
 from .authenticate import AuthRequest
 from .send_message import SendMessageRequest
 from .delete_message import DeleteMessageRequest
-from .list_accounts import ListAccountsRequest
+from .list_users import ListUsersRequest
 
 
 def parse_request(header: Header, data: bytes):
@@ -21,8 +21,8 @@ def parse_request(header: Header, data: bytes):
             return SendMessageRequest.unpack(data)
         case RequestType.DELETE_MESSAGE:
             return DeleteMessageRequest.unpack(data)
-        case RequestType.LIST_ACCOUNTS:
-            return ListAccountsRequest.unpack(data)
+        case RequestType.LIST_USERS:
+            return ListUsersRequest.unpack(data)
 
 
 def send_str(sock: socket.socket, s: str):
