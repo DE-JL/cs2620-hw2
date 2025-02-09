@@ -1,7 +1,9 @@
 import json
+import struct
 
-from entity import Message
-from entity.header import *
+from .utils import pack_messages, unpack_messages
+from entity import *
+from config import *
 
 
 class GetMessagesRequest:
@@ -25,7 +27,7 @@ class GetMessagesRequest:
             pack_format = f"!I {len(self.username)}s"
             data = struct.pack(pack_format, len(username_bytes), username_bytes)
 
-            # Prepend the header
+            # Prepend the protocol header
             header = Header(RequestType.GET_MESSAGES.value, len(data))
             return header.pack() + data
         else:
@@ -36,14 +38,17 @@ class GetMessagesRequest:
             obj_str = json.dumps(obj)
             obj_bytes = obj_str.encode("utf-8")
 
-            # Prepend the header
+            # Prepend the protocol header
             header = Header(RequestType.GET_MESSAGES.value, len(obj_bytes))
             return header.pack() + obj_bytes
 
     @staticmethod
     def unpack(data: bytes):
         if PROTOCOL_TYPE != "json":
-            # Unpack the header
+            # Discard the protocol header
+            data = data[Header.SIZE:]
+
+            # Unpack the data header
             header_format = "!I"
             username_len = struct.unpack_from(header_format, data)[0]
             data = data[struct.calcsize(header_format):]
@@ -57,6 +62,7 @@ class GetMessagesRequest:
 
             return GetMessagesRequest(username)
         else:
+            # TODO: discard the protocol header
             # Decode and load the JSON object
             obj_str = data.decode("utf-8")
             obj = json.loads(obj_str)
@@ -78,15 +84,10 @@ class GetMessagesResponse:
 
     def pack(self) -> bytes:
         if PROTOCOL_TYPE != "json":
-            # Pack the number of messages
-            pack_format = "!I"
-            data = struct.pack(pack_format, len(self.messages))
+            # Pack the data
+            data = pack_messages(self.messages)
 
-            # Pack the messages one by one
-            for message in self.messages:
-                data += message.pack()
-
-            # Prepend the header
+            # Prepend the protocol header
             header = Header(ResponseType.GET_MESSAGES.value, len(data))
             return header.pack() + data
         else:
@@ -96,23 +97,11 @@ class GetMessagesResponse:
     @staticmethod
     def unpack(data: bytes) -> "GetMessagesResponse":
         if PROTOCOL_TYPE != "json":
-            messages = []
+            # Discard the protocol header
+            data = data[Header.SIZE:]
 
-            # First unpack the number of messages
-            num_messages = struct.unpack_from("!I", data)[0]
-            data = data[struct.calcsize("!I"):]
-
-            # Process the messages one by one
-            for _ in range(num_messages):
-                # Read how long the message is
-                message_size_header = Header.unpack(data)
-                message_size = message_size_header.payload_size
-                data = data[Header.SIZE:]
-
-                # Read and append the message
-                message = Message.unpack(data)
-                messages.append(message)
-                data = data[message_size:]
+            # Unpack the messages
+            messages = unpack_messages(data)
 
             return GetMessagesResponse(messages)
         else:

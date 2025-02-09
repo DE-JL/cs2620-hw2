@@ -4,6 +4,7 @@ import uuid
 from api import *
 from config import HOST, PORT
 from entity import *
+from utils.parse import parse_request
 
 
 def test_auth(sock: socket.socket):
@@ -26,7 +27,7 @@ def test_get_messages(sock: socket.socket):
     header = Header.unpack(recvd)
 
     assert ResponseType(header.header_type) == ResponseType.GET_MESSAGES
-    recvd = sock.recv(header.payload_size, socket.MSG_WAITALL)
+    recvd += sock.recv(header.payload_size, socket.MSG_WAITALL)
     resp = GetMessagesResponse.unpack(recvd)
 
     print(resp)
@@ -89,7 +90,7 @@ def main():
         data = client_socket.recv(header.payload_size, socket.MSG_WAITALL)
 
         # Parse the request
-        request = parse_request(header, data)
+        request = parse_request(RequestType(header.header_type), data)
         if request is None:
             s = data.decode("utf-8")
             print(f"Echo {RequestType(header.header_type)}: {s}")

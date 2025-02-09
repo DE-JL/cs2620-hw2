@@ -34,19 +34,21 @@ class Message:
                                self.ts,
                                self.read)
 
-            # Prepend the header
+            # Prepend the protocol header
             header = Header(0, len(data))
             return header.pack() + data
         else:
-
             # TODO
             raise Exception("json not implemented yet")
 
     @staticmethod
     def unpack(data: bytes) -> "Message":
         if PROTOCOL_TYPE != "json":
-            # Unpack the header
-            header_format = f"!I I I"
+            # Discard the protocol header
+            data = data[Header.SIZE:]
+
+            # Unpack the message header
+            header_format = "!I I I"
             sender_len, receiver_len, body_len = struct.unpack_from(header_format, data)
             data = data[struct.calcsize(header_format):]
 

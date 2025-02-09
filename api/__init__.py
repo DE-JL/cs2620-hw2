@@ -4,7 +4,7 @@ from .read_messages import ReadMessagesRequest
 from .send_message import SendMessageRequest
 from .delete_message import DeleteMessageRequest
 from .list_users import ListUsersRequest, ListUsersResponse
-from .utils import parse_request, send_str
+from .utils import send_str
 
 Request = (AuthRequest |
            GetMessagesRequest |
@@ -21,5 +21,5 @@ __all__ = [
     "SendMessageRequest",
     "DeleteMessageRequest",
     "ListUsersRequest", "ListUsersResponse",
-    "parse_request", "send_str",
+    "send_str",
 ]

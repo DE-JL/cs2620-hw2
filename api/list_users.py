@@ -1,5 +1,6 @@
 import json
 
+from .utils import pack_strings, unpack_strings
 from entity.header import *
 
 
@@ -29,7 +30,7 @@ class ListUsersRequest:
                                len(username_bytes), len(pattern_bytes),
                                username_bytes, pattern_bytes)
 
-            # Prepend the header
+            # Prepend the protocol header
             header = Header(RequestType.LIST_USERS.value, len(data))
             return header.pack() + data
         else:
@@ -41,14 +42,17 @@ class ListUsersRequest:
             obj_str = json.dumps(obj)
             obj_bytes = obj_str.encode("utf-8")
 
-            # Prepend the header
+            # Prepend the protocol header
             header = Header(RequestType.LIST_USERS.value, len(obj_bytes))
             return header.pack() + obj_bytes
 
     @staticmethod
     def unpack(data: bytes):
         if PROTOCOL_TYPE != "json":
-            # Unpack the header
+            # Discard the protocol header
+            data = data[Header.SIZE:]
+
+            # Unpack the data header
             header_format = "!I I"
             username_len, pattern_len = struct.unpack_from(header_format, data)
             data = data[struct.calcsize(header_format):]
@@ -63,6 +67,7 @@ class ListUsersRequest:
 
             return ListUsersRequest(username, pattern)
         else:
+            # TODO: discard the protocol header
             # Decode and load the JSON object
             obj_str = data.decode("utf-8")
             obj = json.loads(obj_str)
@@ -82,17 +87,10 @@ class ListUsersResponse:
 
     def pack(self):
         if PROTOCOL_TYPE != "json":
-            # Pack the number of usernames
-            pack_format = "!I"
-            data = struct.pack(pack_format, len(self.usernames))
+            # Pack the data
+            data = pack_strings(self.usernames)
 
-            # Pack the usernames one by one
-            for username in self.usernames:
-                username_bytes = username.encode("utf-8")
-                data += struct.pack("!I", len(username_bytes))
-                data += struct.pack(f"!{len(username_bytes)}s", username_bytes)
-
-            # Prepend the header
+            # Prepend the protocol header
             header = Header(ResponseType.LIST_USERS.value, len(data))
             return header.pack() + data
         else:
@@ -102,22 +100,11 @@ class ListUsersResponse:
     @staticmethod
     def unpack(data: bytes) -> "ListUsersResponse":
         if PROTOCOL_TYPE != "json":
-            usernames = []
+            # Discard the protocol header
+            data = data[Header.SIZE:]
 
-            # First unpack the number of usernames
-            num_usernames = struct.unpack_from("!I", data)[0]
-            data = data[struct.calcsize("!I"):]
-
-            for _ in range(num_usernames):
-                # Unpack the username bytes len
-                username_bytes_len = struct.unpack_from("!I", data)[0]
-                data = data[struct.calcsize("!I"):]
-
-                # Unpack, decode, and append the username
-                username_bytes = struct.unpack_from(f"!{username_bytes_len}s", data)[0]
-                username = username_bytes.decode("utf-8")
-                usernames.append(username)
-                data = data[struct.calcsize(f"!{username_bytes_len}s"):]
+            # Unpack the usernames
+            usernames = unpack_strings(data)
 
             return ListUsersResponse(usernames)
         else:

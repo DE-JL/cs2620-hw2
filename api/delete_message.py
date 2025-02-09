@@ -30,10 +30,11 @@ class DeleteMessageRequest:
                                len(username_bytes),
                                username_bytes, message_id_bytes)
 
-            # Prepend the header
+            # Prepend the protocol header
             header = Header(RequestType.DELETE_MESSAGE.value, len(data))
             return header.pack() + data
         else:
+            # TODO: discard protocol header
             # Encode the JSON object
             obj = {
                 "username": self.username,
@@ -42,14 +43,17 @@ class DeleteMessageRequest:
             obj_str = json.dumps(obj)
             obj_bytes = obj_str.encode("utf-8")
 
-            # Prepend the header
+            # Prepend the protocol header
             header = Header(RequestType.DELETE_MESSAGE.value, len(obj_bytes))
             return header.pack() + obj_bytes
 
     @staticmethod
     def unpack(data: bytes) -> "DeleteMessageRequest":
         if PROTOCOL_TYPE != "json":
-            # Unpack the header
+            # Discard the protocol header
+            data = data[Header.SIZE:]
+
+            # Unpack the data header
             header_format = "!I"
             username_len = struct.unpack_from(header_format, data)[0]
             data = data[struct.calcsize(header_format):]
@@ -64,6 +68,7 @@ class DeleteMessageRequest:
 
             return DeleteMessageRequest(username, message_id)
         else:
+            # TODO: discard protocol header
             # Decode and load the JSON object
             obj_str = data.decode("utf-8")
             obj = json.loads(obj_str)

@@ -7,6 +7,7 @@ import uuid
 from api import *
 from config import HOST, PORT
 from entity import *
+from utils.parse import parse_request
 from utils.regex import is_valid_regex
 
 
@@ -94,16 +95,17 @@ class Server:
             print(f"Received header: {header}")
 
             # Receive the payload
-            data = sock.recv(header.payload_size, socket.MSG_WAITALL)
+            recvd += sock.recv(header.payload_size, socket.MSG_WAITALL)
 
             # Parse the request
-            request = parse_request(header, data)
+            request = parse_request(RequestType(header.header_type), recvd)
             if request is None:
-                s = data.decode("utf-8")
-                print(f"Received {RequestType(header.header_type)}: {s}")
+                string_bytes = recvd[Header.SIZE:]
+                string = string_bytes.decode("utf-8")
+                print(f"Received {RequestType(header.header_type)}: {string}")
 
                 # Send it back
-                ctx.outbound += header.pack() + data
+                ctx.outbound += recvd
             elif type(request) == GetMessagesRequest:
                 print(f"Received {RequestType(header.header_type)}: {request}")
 
