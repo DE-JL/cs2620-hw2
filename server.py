@@ -12,8 +12,8 @@ from utils.regex import is_valid_regex
 
 
 class Server:
-    def __init__(self, host, port):
-        # Initialize server variables
+    def __init__(self):
+        # Initialize storage for users and messages
         self.users: dict[str, User] = {}
         self.messages: dict[uuid.UUID, Message] = {}
 
@@ -22,10 +22,10 @@ class Server:
         self.server_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
         self.server_socket.setblocking(False)
 
+    def run(self, host, port):
         # Bind and listen on <host:port>
         self.server_socket.bind((host, port))
         self.server_socket.listen()
-
         print(f"Server listening on {host}:{port}")
 
         # Register the socket
@@ -156,10 +156,7 @@ class Server:
         message_ids = self.users[username].message_ids
         messages = [self.messages[message_id] for message_id in message_ids]
 
-        # Sort them by order of timestamp
-        sorted_messages = sorted(messages, key=lambda m: m.ts)
-
-        resp = GetMessagesResponse(sorted_messages)
+        resp = GetMessagesResponse(messages)
         return resp
 
     def handle_read_messages(self, request: ReadMessagesRequest):
@@ -167,10 +164,12 @@ class Server:
 
         # Set the read flag for each message in the request
         for message_id in message_ids:
+            if self.messages.get(message_id) is None:
+                raise Exception(f"Read failed: message({message_id}) does not exist")
             message = self.messages[message_id]
             message.set_read()
 
-        resp = Header(ResponseType.OK.value, 0)
+        resp = Header(ResponseType.READ_MESSAGES.value)
         return resp
 
     def handle_send_message(self, request: SendMessageRequest):
@@ -191,30 +190,32 @@ class Server:
         sender.add_message(message.id)
         receiver.add_message(message.id)
 
-        resp = Header(ResponseType.OK.value, 0)
+        resp = Header(ResponseType.SEND_MESSAGE.value)
         return resp
 
-    def handle_delete_message(self, request: DeleteMessageRequest):
-        message_id = request.message_id
+    def handle_delete_message(self, request: DeleteMessagesRequest):
+        message_ids = request.message_ids
 
-        if self.messages.get(message_id) is None:
-            raise Exception(f"Delete message failed: message({message_id}) does not exist")
+        # Delete the messages one by one
+        for message_id in message_ids:
+            if self.messages.get(message_id) is None:
+                raise Exception(f"Delete message failed: message({message_id}) does not exist")
 
-        # Get the message to delete
-        message = self.messages[message_id]
+            # Get the message to delete
+            message = self.messages[message_id]
 
-        # Get the sender and the receiver
-        sender_username, receiver_username = message.sender, message.receiver
-        sender, receiver = self.users[sender_username], self.users[receiver_username]
+            # Get the sender and the receiver
+            sender_username, receiver_username = message.sender, message.receiver
+            sender, receiver = self.users[sender_username], self.users[receiver_username]
 
-        # Delete the message ID from the sender and receiver
-        sender.delete_message(message_id)
-        receiver.delete_message(message_id)
+            # Delete the message ID from the sender and receiver
+            sender.delete_message(message_id)
+            receiver.delete_message(message_id)
 
-        # Delete the message
-        del self.messages[message_id]
+            # Delete the message
+            del self.messages[message_id]
 
-        resp = Header(ResponseType.OK.value, 0)
+        resp = Header(ResponseType.DELETE_MESSAGES.value)
         return resp
 
     def handle_list_users(self, request: ListUsersRequest):
@@ -236,8 +237,8 @@ def main():
     Entry point for server application.
     :return: Nothing on success.
     """
-    server = Server(HOST, PORT)
-    print(server.server_socket.getsockname())
+    server = Server()
+    server.run(HOST, PORT)
 
 
 if __name__ == '__main__':

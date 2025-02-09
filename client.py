@@ -40,15 +40,14 @@ def test_send_message(sock: socket.socket):
                       id=uuid.UUID(int=0),
                       ts=0)
     send_message = SendMessageRequest(message)
-
     sock.sendall(send_message.pack())
 
 
 def test_delete_message(sock: socket.socket):
     username = "user0"
-    message_id = uuid.UUID(int=0)
+    message_ids = [uuid.UUID(int=0), uuid.UUID(int=1)]
 
-    delete_msg = DeleteMessageRequest(username, message_id)
+    delete_msg = DeleteMessagesRequest(username, message_ids)
     sock.sendall(delete_msg.pack())
 
 

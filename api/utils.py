@@ -1,5 +1,6 @@
 import socket
 import struct
+import uuid
 
 from entity import *
 
@@ -11,7 +12,7 @@ def send_str(sock: socket.socket, s: str):
     :param s: The string to send.
     """
     s_bytes = s.encode("utf-8")
-    header = Header(RequestType.DEBUG.value, len(s_bytes))
+    header = Header(RequestType.ECHO.value, len(s_bytes))
     sock.sendall(header.pack() + s_bytes)
 
 
@@ -26,12 +27,14 @@ def pack_messages(messages: list[Message]) -> bytes:
         data += message_bytes
 
     # Prepend the protocol header
-    header = Header(0, len(data))
+    header = Header(DataType.LIST.value, len(data))
     return header.pack() + data
 
 
 def unpack_messages(data: bytes) -> list[Message]:
-    # Discard the protocol header
+    # Verify the protocol header data type
+    header = Header.unpack(data)
+    assert DataType(header.header_type) == DataType.LIST
     data = data[Header.SIZE:]
 
     # Unpack the number of messages
@@ -66,12 +69,14 @@ def pack_strings(strings: list[str]) -> bytes:
         data += string_bytes
 
     # Prepend the protocol header
-    header = Header(0, len(data))
+    header = Header(DataType.LIST.value, len(data))
     return header.pack() + data
 
 
 def unpack_strings(data: bytes) -> list[str]:
-    # Discard the protocol header
+    # Verify the protocol header data type
+    header = Header.unpack(data)
+    assert DataType(header.header_type) == DataType.LIST
     data = data[Header.SIZE:]
 
     # Unpack the number of strings
@@ -94,3 +99,40 @@ def unpack_strings(data: bytes) -> list[str]:
         strings.append(string)
 
     return strings
+
+
+def pack_uuids(uuids: list[uuid.UUID]) -> bytes:
+    # Pack the length
+    data = struct.pack("!I", len(uuids))
+
+    # Pack the UUIDs one by one
+    for uid in uuids:
+        data += struct.pack("!16s", uid.bytes)
+
+    # Prepend the protocol header
+    header = Header(DataType.LIST.value, len(data))
+    return header.pack() + data
+
+
+def unpack_uuids(data: bytes) -> list[uuid.UUID]:
+    # Verify the protocol header data type
+    header = Header.unpack(data)
+    assert DataType(header.header_type) == DataType.LIST
+    data = data[Header.SIZE:]
+
+    # Unpack the number of UUIDs
+    num_uuids = struct.unpack_from("!I", data)[0]
+    data = data[struct.calcsize("!I"):]
+
+    # Unpack the UUIDs one by one
+    uuids = []
+    for _ in range(num_uuids):
+        # Unpack the UUID
+        uuid_bytes = struct.unpack_from("!16s", data)[0]
+        uid = uuid.UUID(bytes=uuid_bytes)
+        data = data[struct.calcsize("!16s"):]
+
+        # Append to the list
+        uuids.append(uid)
+
+    return uuids

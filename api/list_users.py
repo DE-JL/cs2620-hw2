@@ -49,7 +49,9 @@ class ListUsersRequest:
     @staticmethod
     def unpack(data: bytes):
         if PROTOCOL_TYPE != "json":
-            # Discard the protocol header
+            # Verify the protocol header request type
+            header = Header.unpack(data)
+            assert RequestType(header.header_type) == RequestType.LIST_USERS
             data = data[Header.SIZE:]
 
             # Unpack the data header
@@ -100,7 +102,9 @@ class ListUsersResponse:
     @staticmethod
     def unpack(data: bytes) -> "ListUsersResponse":
         if PROTOCOL_TYPE != "json":
-            # Discard the protocol header
+            # Verify the protocol header response type
+            header = Header.unpack(data)
+            assert ResponseType(header.header_type) == ResponseType.LIST_USERS
             data = data[Header.SIZE:]
 
             # Unpack the usernames

@@ -29,7 +29,9 @@ class SendMessageRequest:
     @staticmethod
     def unpack(data: bytes):
         if PROTOCOL_TYPE != "json":
-            # Discard the protocol header
+            # Verify the protocol header request type
+            header = Header.unpack(data)
+            assert RequestType(header.header_type) == RequestType.SEND_MESSAGE
             data = data[Header.SIZE:]
 
             # Unpack the message

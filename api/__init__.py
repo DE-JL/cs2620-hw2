@@ -2,7 +2,7 @@ from .authenticate import AuthRequest
 from .get_messages import GetMessagesRequest, GetMessagesResponse
 from .read_messages import ReadMessagesRequest
 from .send_message import SendMessageRequest
-from .delete_message import DeleteMessageRequest
+from .delete_message import DeleteMessagesRequest
 from .list_users import ListUsersRequest, ListUsersResponse
 from .utils import send_str
 
@@ -10,7 +10,7 @@ Request = (AuthRequest |
            GetMessagesRequest |
            ReadMessagesRequest |
            SendMessageRequest |
-           DeleteMessageRequest |
+           DeleteMessagesRequest |
            ListUsersRequest)
 
 __all__ = [
@@ -19,7 +19,7 @@ __all__ = [
     "GetMessagesRequest", "GetMessagesResponse",
     "ReadMessagesRequest",
     "SendMessageRequest",
-    "DeleteMessageRequest",
+    "DeleteMessagesRequest",
     "ListUsersRequest", "ListUsersResponse",
     "send_str",
 ]

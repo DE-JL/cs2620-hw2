@@ -4,7 +4,7 @@ from entity import RequestType
 
 def parse_request(request_type: RequestType, data: bytes):
     match request_type:
-        case RequestType.DEBUG:
+        case RequestType.ECHO:
             return None
         case RequestType.AUTHENTICATE:
             return AuthRequest.unpack(data)
@@ -14,7 +14,7 @@ def parse_request(request_type: RequestType, data: bytes):
             return ReadMessagesRequest.unpack(data)
         case RequestType.SEND_MESSAGE:
             return SendMessageRequest.unpack(data)
-        case RequestType.DELETE_MESSAGE:
-            return DeleteMessageRequest.unpack(data)
+        case RequestType.DELETE_MESSAGES:
+            return DeleteMessagesRequest.unpack(data)
         case RequestType.LIST_USERS:
             return ListUsersRequest.unpack(data)

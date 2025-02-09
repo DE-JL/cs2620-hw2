@@ -5,24 +5,30 @@ from config import PROTOCOL_TYPE
 
 
 class RequestType(Enum):
-    DEBUG = 0
+    ECHO = 0
     AUTHENTICATE = 1
     GET_MESSAGES = 2
     READ_MESSAGES = 3
     SEND_MESSAGE = 4
-    DELETE_MESSAGE = 5
+    DELETE_MESSAGES = 5
     LIST_USERS = 6
 
 
 class ResponseType(Enum):
-    OK = 0
+    ECHO = 0
     AUTHENTICATE = 1
     GET_MESSAGES = 2
     READ_MESSAGES = 3
     SEND_MESSAGE = 4
-    DELETE_MESSAGE = 5
+    DELETE_MESSAGES = 5
     LIST_USERS = 6
     ERROR = 7
+
+
+class DataType(Enum):
+    NULL = 0
+    MESSAGE = 1
+    LIST = 2
 
 
 class Header:

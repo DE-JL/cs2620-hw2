@@ -2,55 +2,46 @@ import json
 import uuid
 
 from entity.header import *
+from .utils import pack_uuids, unpack_uuids
 
 
-class DeleteMessageRequest:
+class DeleteMessagesRequest:
     """
     Delete message request.
     :var username: The username of the user trying to delete.
-    :var message_id: uuid.UUID The UUID of the message to delete.
+    :var message_ids: The list of IDs of the messages to delete.
     """
 
-    def __init__(self, username: str, message_id: uuid.UUID):
+    def __init__(self, username: str, message_ids: list[uuid.UUID]):
         self.username = username
-        self.message_id = message_id
+        self.message_ids = message_ids
 
     def __str__(self):
-        return f"DeleteMessageRequest({self.username}, {self.message_id})"
+        return f"DeleteMessageRequest({self.username}, {self.message_ids})"
 
     def pack(self) -> bytes:
         if PROTOCOL_TYPE != "json":
             # Encode the data
             username_bytes = self.username.encode("utf-8")
-            message_id_bytes = self.message_id.bytes
 
             # Pack the data
-            pack_format = f"!I {len(username_bytes)}s 16s"
-            data = struct.pack(pack_format,
-                               len(username_bytes),
-                               username_bytes, message_id_bytes)
+            pack_format = f"!I {len(username_bytes)}s"
+            data = struct.pack(pack_format, len(username_bytes), username_bytes)
+            data += pack_uuids(self.message_ids)
 
             # Prepend the protocol header
-            header = Header(RequestType.DELETE_MESSAGE.value, len(data))
+            header = Header(RequestType.DELETE_MESSAGES.value, len(data))
             return header.pack() + data
         else:
             # TODO: discard protocol header
-            # Encode the JSON object
-            obj = {
-                "username": self.username,
-                "message_id": str(self.message_id)
-            }
-            obj_str = json.dumps(obj)
-            obj_bytes = obj_str.encode("utf-8")
-
-            # Prepend the protocol header
-            header = Header(RequestType.DELETE_MESSAGE.value, len(obj_bytes))
-            return header.pack() + obj_bytes
+            raise Exception("json not implemented yet")
 
     @staticmethod
-    def unpack(data: bytes) -> "DeleteMessageRequest":
+    def unpack(data: bytes) -> "DeleteMessagesRequest":
         if PROTOCOL_TYPE != "json":
-            # Discard the protocol header
+            # Verify the protocol header request type
+            header = Header.unpack(data)
+            assert RequestType(header.header_type) == RequestType.DELETE_MESSAGES
             data = data[Header.SIZE:]
 
             # Unpack the data header
@@ -58,20 +49,16 @@ class DeleteMessageRequest:
             username_len = struct.unpack_from(header_format, data)[0]
             data = data[struct.calcsize(header_format):]
 
-            # Unpack the data
-            data_format = f"!{username_len}s 16s"
-            username_bytes, message_id_bytes = struct.unpack_from(data_format, data)
-
-            # Decode the data
+            # Unpack and decode the username
+            data_format = f"!{username_len}s"
+            username_bytes = struct.unpack_from(data_format, data)[0]
             username = username_bytes.decode("utf-8")
-            message_id = uuid.UUID(bytes=message_id_bytes)
+            data = data[struct.calcsize(data_format):]
 
-            return DeleteMessageRequest(username, message_id)
+            # Unpack the message IDs
+            message_ids = unpack_uuids(data)
+
+            return DeleteMessagesRequest(username, message_ids)
         else:
             # TODO: discard protocol header
-            # Decode and load the JSON object
-            obj_str = data.decode("utf-8")
-            obj = json.loads(obj_str)
-
-            return DeleteMessageRequest(obj["username"],
-                                        uuid.UUID(obj["message_id"]))
+            raise Exception("json not implemented yet")

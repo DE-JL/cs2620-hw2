@@ -45,7 +45,9 @@ class GetMessagesRequest:
     @staticmethod
     def unpack(data: bytes):
         if PROTOCOL_TYPE != "json":
-            # Discard the protocol header
+            # Verify the protocol header request type
+            header = Header.unpack(data)
+            assert RequestType(header.header_type) == RequestType.GET_MESSAGES
             data = data[Header.SIZE:]
 
             # Unpack the data header
@@ -97,7 +99,9 @@ class GetMessagesResponse:
     @staticmethod
     def unpack(data: bytes) -> "GetMessagesResponse":
         if PROTOCOL_TYPE != "json":
-            # Discard the protocol header
+            # Verify the protocol header response type
+            header = Header.unpack(data)
+            assert ResponseType(header.header_type) == ResponseType.GET_MESSAGES
             data = data[Header.SIZE:]
 
             # Unpack the messages

@@ -35,7 +35,7 @@ class Message:
                                self.read)
 
             # Prepend the protocol header
-            header = Header(0, len(data))
+            header = Header(DataType.MESSAGE.value)
             return header.pack() + data
         else:
             # TODO
@@ -44,7 +44,9 @@ class Message:
     @staticmethod
     def unpack(data: bytes) -> "Message":
         if PROTOCOL_TYPE != "json":
-            # Discard the protocol header
+            # Verify the protocol header data type
+            header = Header.unpack(data)
+            assert DataType(header.header_type) == DataType.MESSAGE
             data = data[Header.SIZE:]
 
             # Unpack the message header
