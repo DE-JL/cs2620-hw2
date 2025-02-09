@@ -18,6 +18,10 @@ class DeleteMessagesRequest:
         self.username = username
         self.message_ids = message_ids
 
+    def __eq__(self, other):
+        return (self.username == other.username and
+                self.message_ids == other.message_ids)
+
     def __str__(self):
         return f"DeleteMessageRequest({self.username}, {self.message_ids})"
 

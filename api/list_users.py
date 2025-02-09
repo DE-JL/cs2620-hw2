@@ -17,6 +17,10 @@ class ListUsersRequest:
         self.username = username
         self.pattern = pattern
 
+    def __eq__(self, other):
+        return (self.username == other.username and
+                self.pattern == other.pattern)
+
     def __str__(self):
         return f"ListAccounts({self.username}, {self.pattern})"
 
@@ -88,6 +92,12 @@ class ListUsersResponse:
 
     def __init__(self, usernames: list[str]):
         self.usernames = usernames
+
+    def __eq__(self, other):
+        return self.usernames == other.usernames
+
+    def __str__(self):
+        return f"ListUsers({self.usernames})"
 
     def pack(self):
         if PROTOCOL_TYPE != "json":

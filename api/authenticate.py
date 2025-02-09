@@ -27,6 +27,11 @@ class AuthRequest:
     def __str__(self):
         return f"AuthRequest({self.action_type}, {self.username}, {self.password})"
 
+    def __eq__(self, other):
+        return (self.action_type == other.action_type and
+                self.username == other.username and
+                self.password == other.password)
+
     def pack(self):
         if PROTOCOL_TYPE != "json":
             # Encode the data

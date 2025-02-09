@@ -13,6 +13,9 @@ class SendMessageRequest:
     def __init__(self, message: Message):
         self.message = message
 
+    def __eq__(self, other):
+        return self.message == other.message
+
     def __str__(self):
         return f"SendMessageRequest({self.message})"
 

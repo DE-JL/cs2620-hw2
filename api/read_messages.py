@@ -17,6 +17,13 @@ class ReadMessagesRequest:
         self.username = username
         self.message_ids = message_ids
 
+    def __eq__(self, other):
+        return (self.username == other.username and
+                self.message_ids == other.message_ids)
+
+    def __str(self):
+        return f"ReadMessagesRequest({self.username}, {self.message_ids})"
+
     def pack(self):
         # Encode the data
         username_bytes = self.username.encode("utf-8")

@@ -15,6 +15,9 @@ class GetMessagesRequest:
     def __init__(self, username):
         self.username = username
 
+    def __eq__(self, other):
+        return self.username == other.username
+
     def __str__(self):
         return f"GetMessagesRequest({self.username})"
 
@@ -80,6 +83,9 @@ class GetMessagesResponse:
 
     def __init__(self, messages: list[Message]):
         self.messages = messages
+
+    def __eq__(self, other):
+        return self.messages == other.messages
 
     def __str__(self):
         return f"GetMessagesResponse({self.messages})"

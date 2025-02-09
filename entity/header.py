@@ -1,3 +1,4 @@
+from dataclasses import dataclass
 from enum import Enum
 import struct
 
@@ -46,6 +47,10 @@ class Header:
     def __init__(self, header_type: int, payload_size=0):
         self.header_type = header_type
         self.payload_size = payload_size
+
+    def __eq__(self, other):
+        return (self.header_type == other.header_type and
+                self.payload_size == other.payload_size)
 
     def __str__(self):
         return f"Header({self.header_type}, {self.payload_size})"

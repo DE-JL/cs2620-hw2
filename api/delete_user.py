@@ -14,6 +14,9 @@ class DeleteUserRequest:
     def __init__(self, username: str):
         self.username = username
 
+    def __eq__(self, other):
+        return self.username == other.username
+
     def __str__(self):
         return f"DeleteUserRequest({self.username})"
 
