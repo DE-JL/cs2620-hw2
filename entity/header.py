@@ -1,29 +1,28 @@
 from enum import Enum
 import struct
-import yaml
 
-with open("config.yaml") as _f:
-    _config = yaml.safe_load(_f)
-    PROTOCOL_TYPE = _config["protocol_type"]
+from config import PROTOCOL_TYPE
 
 
 class RequestType(Enum):
     DEBUG = 0
     AUTHENTICATE = 1
     GET_MESSAGES = 2
-    SEND_MESSAGE = 3
-    DELETE_MESSAGE = 4
-    LIST_USERS = 5
+    READ_MESSAGES = 3
+    SEND_MESSAGE = 4
+    DELETE_MESSAGE = 5
+    LIST_USERS = 6
 
 
 class ResponseType(Enum):
-    DEBUG = 0
+    OK = 0
     AUTHENTICATE = 1
     GET_MESSAGES = 2
-    SEND_MESSAGE = 3
-    DELETE_MESSAGE = 4
-    LIST_USERS = 5
-    ERROR = 6
+    READ_MESSAGES = 3
+    SEND_MESSAGE = 4
+    DELETE_MESSAGE = 5
+    LIST_USERS = 6
+    ERROR = 7
 
 
 class Header:
@@ -43,10 +42,18 @@ class Header:
     def __str__(self):
         return f"Header({self.header_type}, {self.payload_size})"
 
-    def pack(self):
-        return struct.pack(self.FORMAT, self.header_type, self.payload_size)
+    def pack(self) -> bytes:
+        if PROTOCOL_TYPE != "json":
+            return struct.pack(self.FORMAT, self.header_type, self.payload_size)
+        else:
+            # TODO
+            raise Exception("json not implemented yet")
 
     @staticmethod
-    def unpack(data: bytes):
-        header_type, payload_size = struct.unpack_from(Header.FORMAT, data)
-        return Header(header_type, payload_size)
+    def unpack(data: bytes) -> "Header":
+        if PROTOCOL_TYPE != "json":
+            header_type, payload_size = struct.unpack_from(Header.FORMAT, data)
+            return Header(header_type, payload_size)
+        else:
+            # TODO
+            raise Exception("json not implemented yet")

@@ -1,17 +1,21 @@
-from pydantic import BaseModel, Field
+from dataclasses import dataclass, field
 import time
 import uuid
 
 from .header import *
 
 
-class Message(BaseModel):
+@dataclass
+class Message:
     sender: str
     receiver: str
     body: str
-    message_id: uuid.UUID = Field(default_factory=uuid.uuid4)
-    ts: float = Field(default_factory=time.time)
-    read: bool = False
+    id: uuid.UUID = field(default_factory=uuid.uuid4)
+    ts: float = field(default_factory=time.time)
+    read: bool = field(default=False)
+
+    def set_read(self):
+        self.read = True
 
     def pack(self) -> bytes:
         if PROTOCOL_TYPE != "json":
@@ -19,14 +23,14 @@ class Message(BaseModel):
             sender_bytes = self.sender.encode("utf-8")
             receiver_bytes = self.receiver.encode("utf-8")
             body_bytes = self.body.encode("utf-8")
-            message_id_bytes = self.message_id.bytes
+            id_bytes = self.id.bytes
 
             # Pack the data
             pack_format = f"!I I I {len(sender_bytes)}s {len(receiver_bytes)}s {len(body_bytes)}s 16s d ?"
             data = struct.pack(pack_format,
                                len(sender_bytes), len(receiver_bytes), len(body_bytes),
                                sender_bytes, receiver_bytes, body_bytes,
-                               message_id_bytes,
+                               id_bytes,
                                self.ts,
                                self.read)
 
@@ -34,6 +38,7 @@ class Message(BaseModel):
             header = Header(0, len(data))
             return header.pack() + data
         else:
+
             # TODO
             raise Exception("json not implemented yet")
 
@@ -47,19 +52,18 @@ class Message(BaseModel):
 
             # Unpack the data
             data_format = f"!{sender_len}s {receiver_len}s {body_len}s 16s d ?"
-            (sender_bytes, receiver_bytes, body_bytes, message_id_bytes,
-             ts, read) = struct.unpack_from(data_format, data)
+            sender_bytes, receiver_bytes, body_bytes, id_bytes, ts, read = struct.unpack_from(data_format, data)
 
             # Decode the data
             sender = sender_bytes.decode("utf-8")
             receiver = receiver_bytes.decode("utf-8")
             body = body_bytes.decode("utf-8")
-            message_id = uuid.UUID(bytes=message_id_bytes)
+            message_id = uuid.UUID(bytes=id_bytes)
 
             return Message(sender=sender,
                            receiver=receiver,
                            body=body,
-                           message_id=message_id,
+                           id=message_id,
                            ts=ts,
                            read=read)
         else:

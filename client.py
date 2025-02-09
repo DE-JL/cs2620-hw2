@@ -1,9 +1,9 @@
 import socket
 import uuid
-import yaml
 
-from entity import *
 from api import *
+from config import HOST, PORT
+from entity import *
 
 
 def test_auth(sock: socket.socket):
@@ -33,16 +33,14 @@ def test_get_messages(sock: socket.socket):
 
 
 def test_send_message(sock: socket.socket):
-    body = "hello world"
-    message_id = uuid.UUID(int=0)
-    timestamp = 0
+    message = Message(sender="user0",
+                      receiver="user1",
+                      body="hello world",
+                      id=uuid.UUID(int=0),
+                      ts=0)
+    send_message = SendMessageRequest(message)
 
-    send_msg = SendMessageRequest("user0",
-                                  "user1",
-                                  body,
-                                  message_id,
-                                  timestamp)
-    sock.sendall(send_msg.pack())
+    sock.sendall(send_message.pack())
 
 
 def test_delete_message(sock: socket.socket):
@@ -59,11 +57,6 @@ def test_list_users(sock: socket.socket):
 
 
 def main():
-    with open("config.yaml") as f:
-        config = yaml.safe_load(f)
-        HOST = config["socket"]["host"]
-        PORT = config["socket"]["default_port"]
-
     # Connect to the server
     client_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
     client_socket.connect((HOST, PORT))

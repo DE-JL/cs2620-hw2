@@ -18,7 +18,7 @@ class DeleteMessageRequest:
     def __str__(self):
         return f"DeleteMessageRequest({self.username}, {self.message_id})"
 
-    def pack(self):
+    def pack(self) -> bytes:
         if PROTOCOL_TYPE != "json":
             # Encode the data
             username_bytes = self.username.encode("utf-8")
@@ -47,7 +47,7 @@ class DeleteMessageRequest:
             return header.pack() + obj_bytes
 
     @staticmethod
-    def unpack(data: bytes):
+    def unpack(data: bytes) -> "DeleteMessageRequest":
         if PROTOCOL_TYPE != "json":
             # Unpack the header
             header_format = "!I"

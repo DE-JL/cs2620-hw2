@@ -3,6 +3,7 @@ import socket
 from entity.header import *
 from .get_messages import GetMessagesRequest
 from .authenticate import AuthRequest
+from .read_messages import ReadMessagesRequest
 from .send_message import SendMessageRequest
 from .delete_message import DeleteMessageRequest
 from .list_users import ListUsersRequest
@@ -17,6 +18,8 @@ def parse_request(header: Header, data: bytes):
             return AuthRequest.unpack(data)
         case RequestType.GET_MESSAGES:
             return GetMessagesRequest.unpack(data)
+        case RequestType.READ_MESSAGES:
+            return ReadMessagesRequest.unpack(data)
         case RequestType.SEND_MESSAGE:
             return SendMessageRequest.unpack(data)
         case RequestType.DELETE_MESSAGE:

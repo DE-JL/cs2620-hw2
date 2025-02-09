@@ -1,87 +1,232 @@
+import re
 import selectors
 import socket
 import types
-import yaml
+import uuid
 
-from entity import *
 from api import *
-
-# Selectors
-sel = selectors.DefaultSelector()
-
-
-def accept_wrapper(key: selectors.SelectorKey):
-    """
-    Accept a new client connection and register it for reading.
-    :param key: Select key.
-    """
-    sock = key.fileobj
-    # noinspection PyUnresolvedReferences
-    conn, addr = sock.accept()
-    print(f"Accepted client connection from: {addr}")
-
-    # Set the connection to be non-blocking
-    conn.setblocking(False)
-
-    # Store a context namespace for this particular connection
-    ctx = types.SimpleNamespace(addr=addr, outbound=b"")
-    sel.register(conn, selectors.EVENT_READ | selectors.EVENT_WRITE, data=ctx)
+from config import HOST, PORT
+from entity import *
+from utils.regex import is_valid_regex
 
 
-def service_connection(key, mask):
-    """
-    Echo incoming data back to the client; close on empty data.
-    :param key: Connection key.
-    :param mask: Mask for selecting events.
-    """
-    sock = key.fileobj
-    ctx = key.data
+class Server:
+    def __init__(self, host, port):
+        # Initialize server variables
+        self.users: dict[str, User] = {}
+        self.messages: dict[uuid.UUID, Message] = {}
 
-    if mask & selectors.EVENT_READ:
-        # Receive the header
-        recvd = sock.recv(Header.SIZE, socket.MSG_WAITALL)
+        # Create server socket
+        self.sel = selectors.DefaultSelector()
+        self.server_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+        self.server_socket.setblocking(False)
 
-        # Check if the client closed the connection
-        if not recvd or len(recvd) != Header.SIZE:
-            print(f"Closing connection to {ctx.addr}")
-            sel.unregister(sock)
-            sock.close()
-            return
+        # Bind and listen on <host:port>
+        self.server_socket.bind((host, port))
+        self.server_socket.listen()
 
-        # Unpack the header
-        header = Header.unpack(recvd)
-        print(f"Received header: {header}")
+        print(f"Server listening on {host}:{port}")
 
-        # Receive the payload
-        data = sock.recv(header.payload_size, socket.MSG_WAITALL)
+        # Register the socket
+        self.sel.register(self.server_socket, selectors.EVENT_READ, None)
+        try:
+            while True:
+                events = self.sel.select(timeout=None)
+                for key, mask in events:
+                    if key.data is None:
+                        self.accept_wrapper(key)
+                    else:
+                        self.service_connection(key, mask)
+        except KeyboardInterrupt:
+            print("Caught keyboard interrupt, exiting.")
+        finally:
+            self.sel.close()
 
-        # Parse the request
-        request = parse_request(header, data)
-        if request is None:
-            s = data.decode("utf-8")
-            print(f"Received {RequestType(header.header_type)}: {s}")
+    def accept_wrapper(self, key: selectors.SelectorKey):
+        """
+        Accept a new client connection and register it for reading.
+        :param key: Select key.
+        """
+        sock = key.fileobj
+        if not isinstance(sock, socket.socket):
+            raise TypeError("accept_wrapper expected a socket.socket")
 
-            # Send it back
-            ctx.outbound += header.pack() + data
-        elif type(request) == GetMessagesRequest:
-            print(f"Received {RequestType(header.header_type)}: {request}")
+        # Accept the connection
+        conn, addr = sock.accept()
+        print(f"Accepted client connection from: {addr}")
 
-            message0 = Message(sender="user0",
-                               receiver="user1",
-                               body="hello world")
-            message1 = Message(sender="user0",
-                               receiver="user2",
-                               body="hello world")
+        # Set the connection to be non-blocking
+        conn.setblocking(False)
 
-            resp = GetMessagesResponse([message0, message1])
-            ctx.outbound += resp.pack()
+        # Store a context namespace for this particular connection
+        ctx = types.SimpleNamespace(addr=addr, outbound=b"")
+        self.sel.register(conn, selectors.EVENT_READ | selectors.EVENT_WRITE, data=ctx)
+
+    def service_connection(self, key: selectors.SelectorKey, mask: int):
+        """
+        Echo incoming data back to the client; close on empty data.
+        :param key: Connection key.
+        :param mask: Mask for selecting events.
+        """
+        sock = key.fileobj
+        ctx = key.data
+
+        # Explicit type checking
+        if not isinstance(sock, socket.socket):
+            raise TypeError("service_connection::sock expected a socket.socket")
+        if not isinstance(ctx, types.SimpleNamespace):
+            raise TypeError("service_connection::ctx expected a types.SimpleNamespace")
+
+        # Check if the socket is ready for reading
+        if mask & selectors.EVENT_READ:
+            # Receive the header
+            recvd = sock.recv(Header.SIZE, socket.MSG_WAITALL)
+
+            # Check if the client closed the connection
+            if not recvd or len(recvd) != Header.SIZE:
+                print(f"Closing connection to {ctx.addr}")
+                self.sel.unregister(sock)
+                sock.close()
+                return
+
+            # Unpack the header
+            header = Header.unpack(recvd)
+            print(f"Received header: {header}")
+
+            # Receive the payload
+            data = sock.recv(header.payload_size, socket.MSG_WAITALL)
+
+            # Parse the request
+            request = parse_request(header, data)
+            if request is None:
+                s = data.decode("utf-8")
+                print(f"Received {RequestType(header.header_type)}: {s}")
+
+                # Send it back
+                ctx.outbound += header.pack() + data
+            elif type(request) == GetMessagesRequest:
+                print(f"Received {RequestType(header.header_type)}: {request}")
+
+                message0 = Message(sender="user0",
+                                   receiver="user1",
+                                   body="hello world")
+                message1 = Message(sender="user0",
+                                   receiver="user2",
+                                   body="hello world")
+
+                resp = GetMessagesResponse([message0, message1])
+                ctx.outbound += resp.pack()
+            else:
+                print(f"Received {RequestType(header.header_type)}: {request}")
+
+        # Check if the socket is ready for writing
+        if mask & selectors.EVENT_WRITE:
+            # Only write to the socket if the outbound has data
+            if ctx.outbound:
+                sent = sock.send(ctx.outbound)
+                ctx.outbound = ctx.outbound[sent:]
+
+    def handle_request(self, sock: socket.socket, request: Request):
+        pass
+
+    def handle_auth(self, request: AuthRequest):
+        username, password = request.username, request.password
+        match request.action_type:
+            case AuthRequest.ActionType.CREATE_ACCOUNT:
+                if self.users.get(username) is None:
+                    self.users[username] = User(username=username, password=password)
+                else:
+                    # TODO: return error code?
+                    raise Exception(f"Create failed: user({username}) already exists")
+            case AuthRequest.ActionType.LOGIN:
+                if self.users.get(username) is None:
+                    # TODO: return error code?
+                    raise Exception(f"Login failed: user({username}) does not exist")
+                else:
+                    self.users[username].login()
+
+    def handle_get_messages(self, request: GetMessagesRequest):
+        username = request.username
+        if username not in self.users:
+            raise Exception(f"Get messages failed: username({username}) does not exist")
+
+        # Grab all messages associated with the user
+        message_ids = self.users[username].message_ids
+        messages = [self.messages[message_id] for message_id in message_ids]
+
+        # Sort them by order of timestamp
+        sorted_messages = sorted(messages, key=lambda m: m.ts)
+
+        resp = GetMessagesResponse(sorted_messages)
+        return resp
+
+    def handle_read_messages(self, request: ReadMessagesRequest):
+        message_ids = request.message_ids
+
+        # Set the read flag for each message in the request
+        for message_id in message_ids:
+            message = self.messages[message_id]
+            message.set_read()
+
+        resp = Header(ResponseType.OK.value, 0)
+        return resp
+
+    def handle_send_message(self, request: SendMessageRequest):
+        message = request.message
+
+        # Check that the message ID is unique
+        if self.messages.get(message.id) is not None:
+            raise Exception(f"Send message failed: message({message.id}) already exists")
+
+        # Store the message
+        self.messages[message.id] = message
+
+        # Get the sender and the receiver
+        sender_username, receiver_username = message.sender, message.receiver
+        sender, receiver = self.users[sender_username], self.users[receiver_username]
+
+        # Add the message ID to the sender and receiver
+        sender.add_message(message.id)
+        receiver.add_message(message.id)
+
+        resp = Header(ResponseType.OK.value, 0)
+        return resp
+
+    def handle_delete_message(self, request: DeleteMessageRequest):
+        message_id = request.message_id
+
+        if self.messages.get(message_id) is None:
+            raise Exception(f"Delete message failed: message({message_id}) does not exist")
+
+        # Get the message to delete
+        message = self.messages[message_id]
+
+        # Get the sender and the receiver
+        sender_username, receiver_username = message.sender, message.receiver
+        sender, receiver = self.users[sender_username], self.users[receiver_username]
+
+        # Delete the message ID from the sender and receiver
+        sender.delete_message(message_id)
+        receiver.delete_message(message_id)
+
+        # Delete the message
+        del self.messages[message_id]
+
+        resp = Header(ResponseType.OK.value, 0)
+        return resp
+
+    def handle_list_users(self, request: ListUsersRequest):
+        pattern = request.pattern
+
+        # Check if pattern is valid
+        if not is_valid_regex(pattern):
+            matches = []
         else:
-            print(f"Received {RequestType(header.header_type)}: {request}")
+            regex = re.compile(pattern)
+            matches = [username for username in self.users if regex.search(username)]
 
-    if mask & selectors.EVENT_WRITE:
-        if ctx.outbound is not None:
-            sent = sock.send(ctx.outbound)
-            ctx.outbound = ctx.outbound[sent:]
+        resp = ListUsersResponse(matches)
+        return resp
 
 
 def main():
@@ -89,32 +234,8 @@ def main():
     Entry point for server application.
     :return: Nothing on success.
     """
-    with open("config.yaml") as f:
-        config = yaml.safe_load(f)
-        HOST = config["socket"]["host"]
-        PORT = config["socket"]["default_port"]
-
-    # Create a server socket, bind and listen on IP:port
-    server_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-    server_socket.bind((HOST, PORT))
-    server_socket.listen()
-    server_socket.setblocking(False)
-    print(f"Server listening on {HOST}:{PORT}")
-
-    # Register
-    sel.register(server_socket, selectors.EVENT_READ, None)
-    try:
-        while True:
-            events = sel.select(timeout=None)
-            for key, mask in events:
-                if key.data is None:
-                    accept_wrapper(key)
-                else:
-                    service_connection(key, mask)
-    except KeyboardInterrupt:
-        print("Caught keyboard interrupt, exiting.")
-    finally:
-        sel.close()
+    server = Server(HOST, PORT)
+    print(server.server_socket.getsockname())
 
 
 if __name__ == '__main__':
