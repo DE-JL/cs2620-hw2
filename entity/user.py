@@ -1,8 +1,6 @@
 from dataclasses import dataclass, field
 import uuid
 
-from .message import Message
-
 
 @dataclass
 class User:

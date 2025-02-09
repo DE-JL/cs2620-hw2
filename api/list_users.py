@@ -1,7 +1,9 @@
 import json
+import struct
 
 from .utils import pack_strings, unpack_strings
-from entity.header import *
+from config import PROTOCOL_TYPE
+from entity import *
 
 
 class ListUsersRequest:

@@ -2,8 +2,8 @@ import json
 import struct
 
 from .utils import pack_messages, unpack_messages
+from config import PROTOCOL_TYPE
 from entity import *
-from config import *
 
 
 class GetMessagesRequest:

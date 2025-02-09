@@ -2,3 +2,4 @@ socket:
     host: localhost
     port: 8000
 protocol_type: custom
+debug: true

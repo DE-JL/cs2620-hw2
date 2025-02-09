@@ -9,9 +9,11 @@ with config_path.open() as f:
 HOST = config["socket"]["host"]
 PORT = config["socket"]["port"]
 PROTOCOL_TYPE = config["protocol_type"]
+DEBUG = config["debug"]
 
 __all__ = [
     "HOST",
     "PORT",
     "PROTOCOL_TYPE",
+    "DEBUG",
 ]

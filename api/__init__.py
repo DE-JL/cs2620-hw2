@@ -1,25 +1,29 @@
 from .authenticate import AuthRequest
+from .delete_user import DeleteUserRequest
 from .get_messages import GetMessagesRequest, GetMessagesResponse
-from .read_messages import ReadMessagesRequest
-from .send_message import SendMessageRequest
-from .delete_message import DeleteMessagesRequest
 from .list_users import ListUsersRequest, ListUsersResponse
+from .send_message import SendMessageRequest
+from .read_messages import ReadMessagesRequest
+from .delete_messages import DeleteMessagesRequest
+from .delete_user import DeleteUserRequest
 from .utils import send_str
 
 Request = (AuthRequest |
            GetMessagesRequest |
-           ReadMessagesRequest |
+           ListUsersRequest |
            SendMessageRequest |
+           ReadMessagesRequest |
            DeleteMessagesRequest |
-           ListUsersRequest)
+           DeleteUserRequest)
 
 __all__ = [
     "Request",
     "AuthRequest",
     "GetMessagesRequest", "GetMessagesResponse",
-    "ReadMessagesRequest",
-    "SendMessageRequest",
-    "DeleteMessagesRequest",
     "ListUsersRequest", "ListUsersResponse",
+    "SendMessageRequest",
+    "ReadMessagesRequest",
+    "DeleteMessagesRequest",
+    "DeleteUserRequest",
     "send_str",
 ]

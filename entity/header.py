@@ -8,21 +8,23 @@ class RequestType(Enum):
     ECHO = 0
     AUTHENTICATE = 1
     GET_MESSAGES = 2
-    READ_MESSAGES = 3
+    LIST_USERS = 3
     SEND_MESSAGE = 4
+    READ_MESSAGES = 5
     DELETE_MESSAGES = 5
-    LIST_USERS = 6
+    DELETE_USER = 7
 
 
 class ResponseType(Enum):
     ECHO = 0
     AUTHENTICATE = 1
     GET_MESSAGES = 2
-    READ_MESSAGES = 3
+    LIST_USERS = 3
     SEND_MESSAGE = 4
-    DELETE_MESSAGES = 5
-    LIST_USERS = 6
-    ERROR = 7
+    READ_MESSAGES = 5
+    DELETE_MESSAGES = 6
+    DELETE_USER = 7
+    ERROR = 8
 
 
 class DataType(Enum):

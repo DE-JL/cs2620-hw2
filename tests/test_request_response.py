@@ -4,7 +4,6 @@ import uuid
 from api import *
 from config import HOST, PORT
 from entity import *
-from utils.parse import parse_request
 
 
 def test_auth(sock: socket.socket):
@@ -33,6 +32,11 @@ def test_get_messages(sock: socket.socket):
     print(resp)
 
 
+def test_list_users(sock: socket.socket):
+    list_users = ListUsersRequest("user0", "*")
+    sock.sendall(list_users.pack())
+
+
 def test_send_message(sock: socket.socket):
     message = Message(sender="user0",
                       receiver="user1",
@@ -43,7 +47,13 @@ def test_send_message(sock: socket.socket):
     sock.sendall(send_message.pack())
 
 
-def test_delete_message(sock: socket.socket):
+def test_read_messages(sock: socket.socket):
+    message_ids = [uuid.UUID(int=i) for i in range(4)]
+    read_messages = ReadMessagesRequest("user0", message_ids)
+    sock.sendall(read_messages.pack())
+
+
+def test_delete_messages(sock: socket.socket):
     username = "user0"
     message_ids = [uuid.UUID(int=0), uuid.UUID(int=1)]
 
@@ -51,51 +61,23 @@ def test_delete_message(sock: socket.socket):
     sock.sendall(delete_msg.pack())
 
 
-def test_list_users(sock: socket.socket):
-    list_users = ListUsersRequest("user0", "*")
-    sock.sendall(list_users.pack())
+def test_delete_user(sock: socket.socket):
+    username = "user0"
+    delete_user = DeleteUserRequest(username)
+    sock.sendall(delete_user.pack())
 
 
-def main():
+if __name__ == '__main__':
     # Connect to the server
     client_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
     client_socket.connect((HOST, PORT))
     print(f"Client connected to {HOST}:{PORT}")
 
-    # Wire protocol testing
+    # Request response connectivity testing
     test_auth(client_socket)
     test_get_messages(client_socket)
-    test_send_message(client_socket)
-    test_delete_message(client_socket)
     test_list_users(client_socket)
-
-    # Continuously send
-    while True:
-        s = input("> ")
-        send_str(client_socket, s)
-
-        # Receive the header
-        recvd = client_socket.recv(Header.SIZE, socket.MSG_WAITALL)
-
-        # Check if the client closed the connection
-        if not recvd or len(recvd) != Header.SIZE:
-            raise Exception("???????")
-
-        # Unpack the header
-        header = Header.unpack(recvd)
-        print(f"Received header: {header}")
-
-        # Receive the payload
-        data = client_socket.recv(header.payload_size, socket.MSG_WAITALL)
-
-        # Parse the request
-        request = parse_request(RequestType(header.header_type), data)
-        if request is None:
-            s = data.decode("utf-8")
-            print(f"Echo {RequestType(header.header_type)}: {s}")
-        else:
-            print(f"Echo {RequestType(header.header_type)}: {request}")
-
-
-if __name__ == '__main__':
-    main()
+    test_send_message(client_socket)
+    test_read_messages(client_socket)
+    test_delete_messages(client_socket)
+    test_delete_user(client_socket)

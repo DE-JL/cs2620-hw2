@@ -20,6 +20,7 @@ class Server:
         # Create server socket
         self.sel = selectors.DefaultSelector()
         self.server_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+        self.server_socket.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
         self.server_socket.setblocking(False)
 
     def run(self, host, port):
@@ -129,6 +130,7 @@ class Server:
                 ctx.outbound = ctx.outbound[sent:]
 
     def handle_request(self, sock: socket.socket, request: Request):
+        # TODO
         pass
 
     def handle_auth(self, request: AuthRequest):

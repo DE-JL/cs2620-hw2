@@ -1,8 +1,10 @@
 from dataclasses import dataclass, field
+import struct
 import time
 import uuid
 
-from .header import *
+from .header import DataType, Header
+from config import PROTOCOL_TYPE
 
 
 @dataclass

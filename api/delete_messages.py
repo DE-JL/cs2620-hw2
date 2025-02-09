@@ -1,8 +1,10 @@
 import json
+import struct
 import uuid
 
-from entity.header import *
 from .utils import pack_uuids, unpack_uuids
+from config import PROTOCOL_TYPE
+from entity import *
 
 
 class DeleteMessagesRequest:

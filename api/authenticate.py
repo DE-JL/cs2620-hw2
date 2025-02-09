@@ -1,6 +1,9 @@
+from enum import Enum
 import json
+import struct
 
-from entity.header import *
+from config import PROTOCOL_TYPE
+from entity import *
 
 
 class AuthRequest:

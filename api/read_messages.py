@@ -1,8 +1,10 @@
 import json
+import struct
 import uuid
 
-from entity.header import *
 from .utils import pack_uuids, unpack_uuids
+from config import PROTOCOL_TYPE
+from entity import *
 
 
 class ReadMessagesRequest:
@@ -11,12 +13,18 @@ class ReadMessagesRequest:
     :var message_ids: The IDs of the messages to be marked as read.
     """
 
-    def __init__(self, message_ids: list[uuid.UUID]):
+    def __init__(self, username: str, message_ids: list[uuid.UUID]):
+        self.username = username
         self.message_ids = message_ids
 
     def pack(self):
+        # Encode the data
+        username_bytes = self.username.encode("utf-8")
+
         # Pack the data
-        data = pack_uuids(self.message_ids)
+        pack_format = f"!I {len(username_bytes)}s"
+        data = struct.pack(pack_format, len(username_bytes), username_bytes)
+        data += pack_uuids(self.message_ids)
 
         # Prepend the protocol header
         header = Header(ResponseType.READ_MESSAGES.value, len(data))
@@ -30,10 +38,21 @@ class ReadMessagesRequest:
             assert RequestType(header.header_type) == RequestType.READ_MESSAGES
             data = data[Header.SIZE:]
 
+            # Unpack the data header
+            header_format = "!I"
+            username_len = struct.unpack_from(header_format, data)[0]
+            data = data[struct.calcsize(header_format):]
+
+            # Unpack and decode the username
+            data_format = f"!{username_len}s"
+            username_bytes = struct.unpack_from(data_format, data)[0]
+            username = username_bytes.decode("utf-8")
+            data = data[struct.calcsize(data_format):]
+
             # Unpack the data
             message_ids = unpack_uuids(data)
 
-            return ReadMessagesRequest(message_ids)
+            return ReadMessagesRequest(username, message_ids)
         else:
             # TODO
             raise Exception("json not implemented yet")

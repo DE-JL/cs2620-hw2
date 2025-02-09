@@ -1,5 +1,7 @@
-from entity.header import *
-from entity import Message
+import json
+
+from config import PROTOCOL_TYPE
+from entity import *
 
 
 class SendMessageRequest:
