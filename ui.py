@@ -20,6 +20,8 @@ from PyQt5.QtCore import QThread
 from config import HOST, PORT
 from entity import Message, ResponseType, Header
 
+from utils import recv_resp_bytes
+
 import api
 
 import hashlib
@@ -97,10 +99,11 @@ class UserSession:
         auth_request = api.AuthRequest(action, username, hashed_password)
         self.sock.sendall(auth_request.pack())
 
-        auth_response = Header.unpack(self.sock.recv(Header.SIZE, socket.MSG_WAITALL))
+        header, recvd = recv_resp_bytes(self.sock)
 
-        if ResponseType(auth_response.header_type) != ResponseType.AUTHENTICATE:
-            QMessageBox.critical(self.window, 'Error', "Authentication failed")
+        if ResponseType(header.header_type) == ResponseType.ERROR:
+            resp = api.ErrorResponse.unpack(recvd)
+            QMessageBox.critical(self.window, 'Error', resp.message)
             return
         
         print("Authentication successful")
@@ -141,10 +144,11 @@ class UserSession:
         delete_user_request = api.DeleteUserRequest(self.username)
         self.sock.sendall(delete_user_request.pack())
 
-        delete_user_response = Header.unpack(self.sock.recv(Header.SIZE, socket.MSG_WAITALL))
+        header, recvd = recv_resp_bytes(self.sock)
 
-        if ResponseType(delete_user_response.header_type) != ResponseType.DELETE_USER:
-            QMessageBox.critical(self.window, 'Error', "Error with request to delete account")
+        if ResponseType(header.header_type) == ResponseType.ERROR:
+            resp = api.ErrorResponse.unpack(recvd)
+            QMessageBox.critical(self.window, 'Error', resp.message)
             return
         
         print("Account deleted")
@@ -156,15 +160,13 @@ class UserSession:
         list_account_request = api.ListUsersRequest(search_string)
         self.sock.sendall(list_account_request.pack())
 
-        recvd = self.sock.recv(Header.SIZE, socket.MSG_WAITALL)
-        header = Header.unpack(recvd)
+        header, recvd = recv_resp_bytes(self.sock)
 
-        if ResponseType(header.header_type) != ResponseType.LIST_ACCOUNT:
-            QMessageBox.critical(self.window, 'Error', "Error with request to list accounts")
+        if ResponseType(header.header_type) == ResponseType.ERROR:
+            resp = api.ErrorResponse.unpack(recvd)
+            QMessageBox.critical(self.window, 'Error', resp.message)
             return
         
-        recvd += self.sock.recv(header.payload_size, socket.MSG_WAITALL)
-
         list_account_response = api.ListUsersResponse.unpack(recvd)
 
         if list_account_response.header_type != ResponseType.LIST_ACCOUNT.value:
@@ -182,11 +184,11 @@ class UserSession:
         send_message_request = api.SendMessageRequest(self.username, recipient, message_body)
         self.sock.sendall(send_message_request.pack())
 
-        recvd = self.sock.recv(Header.SIZE, socket.MSG_WAITALL)
-        header = Header.unpack(recvd)
+        header, recvd = recv_resp_bytes(self.sock)
 
-        if ResponseType(header.header_type) != ResponseType.SEND_MESSAGE:
-            QMessageBox.critical(self.window, 'Error', "Error with request to send message")
+        if ResponseType(header.header_type) == ResponseType.ERROR:
+            resp = api.ErrorResponse.unpack(recvd)
+            QMessageBox.critical(self.window, 'Error', resp.message)
             return
     
     def handle_new_messages(self, messages):
@@ -208,11 +210,11 @@ class UserSession:
         delete_messages_request = api.DeleteMessagesRequest(self.username, ids_to_delete)
         self.sock.sendall(delete_messages_request.pack())
 
-        recvd = self.sock.recv(Header.SIZE, socket.MSG_WAITALL)
-        header = Header.unpack(recvd)
+        header, recvd = recv_resp_bytes(self.sock)
 
-        if ResponseType(header.header_type) != ResponseType.DELETE_MESSAGES:
-            QMessageBox.critical(self.window, 'Error', "Error with request to delete messages")
+        if ResponseType(header.header_type) == ResponseType.ERROR:
+            resp = api.ErrorResponse.unpack(recvd)
+            QMessageBox.critical(self.window, 'Error', resp.message)
             return
 
     def read_messages_event(self):
