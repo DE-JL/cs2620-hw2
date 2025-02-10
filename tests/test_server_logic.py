@@ -1,0 +1,372 @@
+"""
+This test file primarily tests the pack() and unpack() methods for our entity and request/response classes.
+It also tests for equality checking.
+"""
+
+import socket
+import uuid
+
+from api import *
+from config import HOST, PORT
+from entity import *
+
+
+def recv_resp_bytes(sock: socket.socket) -> bytes:
+    recvd = sock.recv(Header.SIZE, socket.MSG_WAITALL)
+    assert recvd and len(recvd) == Header.SIZE
+
+    header = Header.unpack(recvd)
+    recvd += sock.recv(header.payload_size, socket.MSG_WAITALL)
+
+    return recvd
+
+
+def test_auth(sock: socket.socket):
+    """
+    This test case tests the following:
+    1. Log in to an account that doesn't exist.
+    2. Create an account that already exists.
+    3. Logging in with an incorrect password.
+    4. Successful account creation and login.
+    """
+    # ========================================== TEST ========================================== #
+    req = AuthRequest(AuthRequest.ActionType.LOGIN,
+                      "user1",
+                      "password")
+    exp = ErrorResponse("Login failed: user \"user1\" does not exist.")
+
+    sock.sendall(req.pack())
+    resp = ErrorResponse.unpack(recv_resp_bytes(sock))
+
+    assert resp == exp
+    # ========================================================================================== #
+
+    # ========================================== TEST ========================================== #
+    req = AuthRequest(AuthRequest.ActionType.CREATE_ACCOUNT,
+                      "user1",
+                      "password")
+    exp = AuthResponse()
+
+    sock.sendall(req.pack())
+    resp = AuthResponse.unpack(recv_resp_bytes(sock))
+
+    assert resp == exp
+    # ========================================================================================== #
+
+    # ========================================== TEST ========================================== #
+    req = AuthRequest(AuthRequest.ActionType.CREATE_ACCOUNT,
+                      "user1",
+                      "password")
+    exp = ErrorResponse("Create account failed: user \"user1\" already exists.")
+
+    sock.sendall(req.pack())
+    resp = ErrorResponse.unpack(recv_resp_bytes(sock))
+
+    assert resp == exp
+    # ========================================================================================== #
+
+    # ========================================== TEST ========================================== #
+    req = AuthRequest(AuthRequest.ActionType.LOGIN,
+                      "user1",
+                      "wrong_password")
+    exp = ErrorResponse("Login failed: incorrect password.")
+
+    sock.sendall(req.pack())
+    resp = ErrorResponse.unpack(recv_resp_bytes(sock))
+
+    assert resp == exp
+    # ========================================================================================== #
+
+    print("test_server_logic::test_auth ---- PASSED")
+
+
+def test_send_and_get(sock: socket.socket):
+    """
+    This test case tests the following:
+    1. Send a message to a user that doesn't exist.
+    2. Send a message from user1 to user2.
+    3. Retrieve the messages from user1 and user2.
+    """
+    # ========================================== TEST ========================================== #
+    req = AuthRequest(AuthRequest.ActionType.CREATE_ACCOUNT,
+                      "user2",
+                      "password")
+    exp = AuthResponse()
+
+    sock.sendall(req.pack())
+    resp = AuthResponse.unpack(recv_resp_bytes(sock))
+
+    assert resp == exp
+    # ========================================================================================== #
+
+    # ========================================== TEST ========================================== #
+    invalid_msg = Message(sender="user1",
+                          receiver="user3",
+                          body="hello user3!",
+                          id=uuid.UUID(int=0),
+                          ts=0)
+    req = SendMessageRequest("user1", invalid_msg)
+    exp = ErrorResponse("Send message failed: recipient \"user3\" does not exist.")
+
+    sock.sendall(req.pack())
+    resp = ErrorResponse.unpack(recv_resp_bytes(sock))
+
+    assert resp == exp
+    # ========================================================================================== #
+
+    # ========================================== TEST ========================================== #
+    msg1 = Message(sender="user1",
+                   receiver="user2",
+                   body="hello user2!",
+                   id=uuid.UUID(int=1),
+                   ts=1)
+    req = SendMessageRequest("user1", msg1)
+    exp = SendMessageResponse()
+
+    sock.sendall(req.pack())
+    resp = SendMessageResponse.unpack(recv_resp_bytes(sock))
+
+    assert resp == exp
+    # ========================================================================================== #
+
+    # ========================================== TEST ========================================== #
+    msg2 = Message(sender="user1",
+                   receiver="user2",
+                   body="how are you doing, user2?",
+                   id=uuid.UUID(int=2),
+                   ts=2)
+    req = SendMessageRequest("user1", msg2)
+    exp = SendMessageResponse()
+
+    sock.sendall(req.pack())
+    resp = SendMessageResponse.unpack(recv_resp_bytes(sock))
+
+    assert resp == exp
+    # ========================================================================================== #
+
+    # ========================================== TEST ========================================== #
+    req = GetMessagesRequest("user1")
+    exp = GetMessagesResponse([])
+
+    sock.sendall(req.pack())
+    resp = GetMessagesResponse.unpack(recv_resp_bytes(sock))
+
+    assert resp == exp
+    # ========================================================================================== #
+
+    # ========================================== TEST ========================================== #
+    req = GetMessagesRequest("user2")
+    exp = GetMessagesResponse([msg1, msg2])
+
+    sock.sendall(req.pack())
+    resp = GetMessagesResponse.unpack(recv_resp_bytes(sock))
+
+    assert resp == exp
+    # ========================================================================================== #
+
+    print("test_server_logic::test_send_and_get ---- PASSED")
+
+
+def test_list_users(sock: socket.socket):
+    """
+    This test case tests the following:
+    1. List all users of the form user*.
+    2. List all users of the form a*.
+    """
+    # ========================================== TEST ========================================== #
+    req = ListUsersRequest("user1", "user*")
+    exp = ListUsersResponse(["user1", "user2"])
+
+    sock.sendall(req.pack())
+    resp = ListUsersResponse.unpack(recv_resp_bytes(sock))
+
+    assert resp == exp
+    # ========================================================================================== #
+
+    # ========================================== TEST ========================================== #
+    req = ListUsersRequest("user1", "a*")
+    exp = ListUsersResponse([])
+
+    sock.sendall(req.pack())
+    resp = ListUsersResponse.unpack(recv_resp_bytes(sock))
+
+    assert resp == exp
+    # ========================================================================================== #
+
+    print("test_server_logic::test_list_users ---- PASSED")
+
+
+def test_read_messages(sock: socket.socket):
+    """
+    This test case tests the following:
+    1. Get the messages for user2 and assert that they are unread.
+    1. Read messages for user2.
+    2. Get the messages for user2 and assert that they are now read.
+    """
+    # ========================================== TEST ========================================== #
+    req = GetMessagesRequest("user2")
+
+    sock.sendall(req.pack())
+    resp = GetMessagesResponse.unpack(recv_resp_bytes(sock))
+
+    messages = resp.messages
+    for message in messages:
+        assert not message.read
+
+    message_ids = [message.id for message in messages]
+    # ========================================================================================== #
+
+    # ========================================== TEST ========================================== #
+    req = ReadMessagesRequest("user2", message_ids)
+    exp = ReadMessagesResponse()
+
+    sock.sendall(req.pack())
+    resp = ReadMessagesResponse.unpack(recv_resp_bytes(sock))
+
+    assert resp == exp
+    # ========================================================================================== #
+
+    # ========================================== TEST ========================================== #
+    req = GetMessagesRequest("user2")
+
+    sock.sendall(req.pack())
+    resp = GetMessagesResponse.unpack(recv_resp_bytes(sock))
+
+    messages = resp.messages
+    for message in messages:
+        assert message.read
+    # ========================================================================================== #
+
+    print("test_server_logic::test_read_messages ---- PASSED")
+
+
+def test_delete_messages(sock: socket.socket):
+    """
+    This test case tests the following:
+    1. Get the messages for user2.
+    2. Delete the messages for user2.
+    3. Get the messages for user2 and assert that the inbox is empty.
+    """
+    # ========================================== TEST ========================================== #
+    print("test_delete_messages --------------- starting")
+    req = GetMessagesRequest("user2")
+
+    sock.sendall(req.pack())
+    resp = GetMessagesResponse.unpack(recv_resp_bytes(sock))
+
+    messages = resp.messages
+    message_ids = [message.id for message in messages]
+    # ========================================================================================== #
+
+    # ========================================== TEST ========================================== #
+    req = DeleteMessagesRequest("user2", message_ids)
+    exp = DeleteMessagesResponse()
+
+    sock.sendall(req.pack())
+    resp = DeleteMessagesResponse.unpack(recv_resp_bytes(sock))
+
+    assert resp == exp
+    # ========================================================================================== #
+
+    # ========================================== TEST ========================================== #
+    req = GetMessagesRequest("user2")
+    exp = GetMessagesResponse([])
+
+    sock.sendall(req.pack())
+    resp = GetMessagesResponse.unpack(recv_resp_bytes(sock))
+
+    assert resp == exp
+    # ========================================================================================== #
+
+    print("test_server_logic::test_delete_messages ---- PASSED")
+
+
+def test_delete_user(sock: socket.socket):
+    """
+    This test case tests the following:
+    1. Send a message to user2 so that it has a non-empty inbox.
+    2. Delete user2.
+    3. Assert that attempting to log in to user2 now fails.
+    4. Log in to user1.
+    5. Assert that a message to user2 now fails: user not found.
+    """
+    # ========================================== TEST ========================================== #
+    msg = Message(sender="user1",
+                  receiver="user2",
+                  body="hello user2!",
+                  id=uuid.UUID(int=1),
+                  ts=1)
+    req = SendMessageRequest("user1", msg)
+    exp = SendMessageResponse()
+
+    sock.sendall(req.pack())
+    resp = SendMessageResponse.unpack(recv_resp_bytes(sock))
+
+    assert resp == exp
+    # ========================================================================================== #
+
+    # ========================================== TEST ========================================== #
+    req = DeleteUserRequest("user2")
+    exp = DeleteUserResponse()
+
+    sock.sendall(req.pack())
+    resp = DeleteUserResponse.unpack(recv_resp_bytes(sock))
+
+    assert resp == exp
+    # ========================================================================================== #
+
+    # ========================================== TEST ========================================== #
+    req = AuthRequest(AuthRequest.ActionType.LOGIN,
+                      "user2",
+                      "password")
+    exp = ErrorResponse("Login failed: user \"user2\" does not exist.")
+
+    sock.sendall(req.pack())
+    resp = ErrorResponse.unpack(recv_resp_bytes(sock))
+
+    assert resp == exp
+    # ========================================================================================== #
+
+    # ========================================== TEST ========================================== #
+    req = AuthRequest(AuthRequest.ActionType.LOGIN,
+                      "user1",
+                      "password")
+    exp = AuthResponse()
+
+    sock.sendall(req.pack())
+    resp = AuthResponse.unpack(recv_resp_bytes(sock))
+
+    assert resp == exp
+    # ========================================================================================== #
+
+    # ========================================== TEST ========================================== #
+    msg = Message(sender="user1",
+                  receiver="user2",
+                  body="are you still alive",
+                  id=uuid.UUID(int=0),
+                  ts=0)
+    req = SendMessageRequest("user1", msg)
+    exp = ErrorResponse("Send message failed: recipient \"user2\" does not exist.")
+
+    sock.sendall(req.pack())
+    resp = ErrorResponse.unpack(recv_resp_bytes(sock))
+
+    assert resp == exp
+    # ========================================================================================== #
+
+    print("test_server_logic::test_delete_user ---- PASSED")
+
+
+if __name__ == '__main__':
+    # Connect to the server
+    client_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+    client_socket.connect((HOST, PORT))
+    print(f"Client connected to {HOST}:{PORT}")
+
+    # Run tests (the order matters!)
+    test_auth(client_socket)
+    test_send_and_get(client_socket)
+    test_list_users(client_socket)
+    test_read_messages(client_socket)
+    test_delete_messages(client_socket)
+    test_delete_user(client_socket)

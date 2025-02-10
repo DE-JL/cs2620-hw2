@@ -1,4 +1,3 @@
-from dataclasses import dataclass
 from enum import Enum
 import struct
 
@@ -12,7 +11,7 @@ class RequestType(Enum):
     LIST_USERS = 3
     SEND_MESSAGE = 4
     READ_MESSAGES = 5
-    DELETE_MESSAGES = 5
+    DELETE_MESSAGES = 6
     DELETE_USER = 7
 
 
@@ -37,8 +36,10 @@ class DataType(Enum):
 class Header:
     """
     Header for wire protocol.
-    :var FORMAT: Predefined protocol header format.
-    :var SIZE: Predefined protocol header size.
+    :cvar FORMAT: Predefined protocol header format.
+    :cvar SIZE: Predefined protocol header size.
+    :var header_type: Identifier for different types of objects.
+    :var payload_size: The size of the following data payload in bytes.
     """
 
     FORMAT = "!B I"

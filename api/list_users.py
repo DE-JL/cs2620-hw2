@@ -97,7 +97,7 @@ class ListUsersResponse:
         return self.usernames == other.usernames
 
     def __str__(self):
-        return f"ListUsers({self.usernames})"
+        return f"ListUsersResponse({self.usernames})"
 
     def pack(self):
         if PROTOCOL_TYPE != "json":

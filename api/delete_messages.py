@@ -68,3 +68,38 @@ class DeleteMessagesRequest:
         else:
             # TODO: discard protocol header
             raise Exception("json not implemented yet")
+
+
+class DeleteMessagesResponse:
+    """
+    Delete messages response.
+    """
+
+    def __init__(self):
+        return
+
+    def __eq__(self, other):
+        return isinstance(other, DeleteMessagesResponse)
+
+    def __str__(self):
+        return "DeleteMessagesResponse()"
+
+    @staticmethod
+    def pack() -> bytes:
+        if PROTOCOL_TYPE != "json":
+            return Header(ResponseType.DELETE_MESSAGES.value).pack()
+        else:
+            # TODO
+            raise Exception("json not implemented yet")
+
+    @staticmethod
+    def unpack(data: bytes) -> "DeleteMessagesResponse":
+        if PROTOCOL_TYPE != "json":
+            # Verify the protocol header response type
+            header = Header.unpack(data)
+            assert ResponseType(header.header_type) == ResponseType.DELETE_MESSAGES
+
+            return DeleteMessagesResponse()
+        else:
+            # TODO
+            raise Exception("json not implemented yet")
