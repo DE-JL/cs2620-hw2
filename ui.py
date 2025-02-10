@@ -175,7 +175,7 @@ class UserSession:
         recipient = self.main_frame.central.send_message.recipient_entry.text()
         message_body = self.main_frame.central.send_message.message_text.toPlainText()
 
-        send_message_request = api.SendMessageRequest(self.user_name, recipient, message_body)
+        send_message_request = api.SendMessageRequest(self.username, recipient, message_body)
         self.sock.sendall(send_message_request.pack())
 
         recvd = self.sock.recv(Header.SIZE, socket.MSG_WAITALL)
