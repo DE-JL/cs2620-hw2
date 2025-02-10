@@ -1,7 +1,8 @@
 import netifaces
+import socket
 
 from api import *
-from entity import RequestType
+from entity import Header, RequestType
 
 
 def get_ipaddr():
@@ -15,6 +16,16 @@ def get_ipaddr():
     except ValueError:
         # 'en0' might not exist on this machine
         return None
+
+
+def recv_resp_bytes(sock: socket.socket) -> (Header, bytes):
+    recvd = sock.recv(Header.SIZE, socket.MSG_WAITALL)
+    assert recvd and len(recvd) == Header.SIZE
+
+    header = Header.unpack(recvd)
+    recvd += sock.recv(header.payload_size, socket.MSG_WAITALL)
+
+    return header, recvd
 
 
 def parse_request(request_type: RequestType, data: bytes):
