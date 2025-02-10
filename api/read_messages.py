@@ -56,10 +56,45 @@ class ReadMessagesRequest:
             username = username_bytes.decode("utf-8")
             data = data[struct.calcsize(data_format):]
 
-            # Unpack the data
+            # Unpack the message IDs
             message_ids = unpack_uuids(data)
 
             return ReadMessagesRequest(username, message_ids)
+        else:
+            # TODO
+            raise Exception("json not implemented yet")
+
+
+class ReadMessagesResponse:
+    """
+    Read messages response.
+    """
+
+    def __init__(self):
+        return
+
+    def __eq__(self, other):
+        return isinstance(other, ReadMessagesResponse)
+
+    def __str__(self):
+        return "ReadMessagesResponse()"
+
+    @staticmethod
+    def pack() -> bytes:
+        if PROTOCOL_TYPE != "json":
+            return Header(ResponseType.READ_MESSAGES.value).pack()
+        else:
+            # TODO
+            raise Exception("json not implemented yet")
+
+    @staticmethod
+    def unpack(data: bytes) -> "ReadMessagesResponse":
+        if PROTOCOL_TYPE != "json":
+            # Verify the protocol header response type
+            header = Header.unpack(data)
+            assert ResponseType(header.header_type) == ResponseType.READ_MESSAGES
+
+            return ReadMessagesResponse()
         else:
             # TODO
             raise Exception("json not implemented yet")

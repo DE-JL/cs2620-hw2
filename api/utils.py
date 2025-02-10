@@ -1,19 +1,7 @@
-import socket
 import struct
 import uuid
 
 from entity import *
-
-
-def send_str(sock: socket.socket, s: str):
-    """
-    A utility function that wires a string (for logging).
-    :param sock: Target socket.
-    :param s: The string to send.
-    """
-    s_bytes = s.encode("utf-8")
-    header = Header(RequestType.ECHO.value, len(s_bytes))
-    sock.sendall(header.pack() + s_bytes)
 
 
 def pack_messages(messages: list[Message]) -> bytes:

@@ -1,4 +1,3 @@
-from dataclasses import dataclass
 from enum import Enum
 import struct
 
@@ -37,8 +36,10 @@ class DataType(Enum):
 class Header:
     """
     Header for wire protocol.
-    :var FORMAT: Predefined protocol header format.
-    :var SIZE: Predefined protocol header size.
+    :cvar FORMAT: Predefined protocol header format.
+    :cvar SIZE: Predefined protocol header size.
+    :var header_type: Identifier for different types of objects.
+    :var payload_size: The size of the following data payload in bytes.
     """
 
     FORMAT = "!B I"

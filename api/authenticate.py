@@ -96,3 +96,38 @@ class AuthRequest:
             return AuthRequest(AuthRequest.ActionType(obj["action_type"]),
                                obj["username"],
                                obj["password"])
+
+
+class AuthResponse:
+    """
+    Authenticate response.
+    """
+
+    def __init__(self):
+        return
+
+    def __eq__(self, other):
+        return isinstance(other, AuthResponse)
+
+    def __str__(self):
+        return "AuthResponse()"
+
+    @staticmethod
+    def pack() -> bytes:
+        if PROTOCOL_TYPE != "json":
+            return Header(ResponseType.AUTHENTICATE.value).pack()
+        else:
+            # TODO
+            raise Exception("json not implemented yet")
+
+    @staticmethod
+    def unpack(data: bytes) -> "AuthResponse":
+        if PROTOCOL_TYPE != "json":
+            # Verify the protocol header response type
+            header = Header.unpack(data)
+            assert ResponseType(header.header_type) == ResponseType.AUTHENTICATE
+
+            return AuthResponse()
+        else:
+            # TODO
+            raise Exception("json not implemented yet")

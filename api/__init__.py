@@ -1,14 +1,14 @@
-from .authenticate import AuthRequest
-from .delete_user import DeleteUserRequest
+from .echo import EchoRequest, EchoResponse
+from .authenticate import AuthRequest, AuthResponse
 from .get_messages import GetMessagesRequest, GetMessagesResponse
 from .list_users import ListUsersRequest, ListUsersResponse
-from .send_message import SendMessageRequest
-from .read_messages import ReadMessagesRequest
-from .delete_messages import DeleteMessagesRequest
-from .delete_user import DeleteUserRequest
-from .utils import send_str
+from .send_message import SendMessageRequest, SendMessageResponse
+from .read_messages import ReadMessagesRequest, ReadMessagesResponse
+from .delete_messages import DeleteMessagesRequest, DeleteMessagesResponse
+from .delete_user import DeleteUserRequest, DeleteUserResponse
 
-Request = (AuthRequest |
+Request = (EchoRequest |
+           AuthRequest |
            GetMessagesRequest |
            ListUsersRequest |
            SendMessageRequest |
@@ -18,12 +18,12 @@ Request = (AuthRequest |
 
 __all__ = [
     "Request",
-    "AuthRequest",
+    "EchoRequest", "EchoResponse",
+    "AuthRequest", "AuthResponse",
     "GetMessagesRequest", "GetMessagesResponse",
     "ListUsersRequest", "ListUsersResponse",
-    "SendMessageRequest",
-    "ReadMessagesRequest",
-    "DeleteMessagesRequest",
-    "DeleteUserRequest",
-    "send_str",
+    "SendMessageRequest", "SendMessageResponse",
+    "ReadMessagesRequest", "ReadMessagesResponse",
+    "DeleteMessagesRequest", "DeleteMessagesResponse",
+    "DeleteUserRequest", "DeleteUserResponse",
 ]

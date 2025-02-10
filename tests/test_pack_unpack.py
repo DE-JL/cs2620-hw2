@@ -6,6 +6,8 @@ It also tests for equality checking.
 import uuid
 
 from api import *
+from api.delete_messages import DeleteMessagesResponse
+from api.delete_user import DeleteUserResponse
 from entity import *
 
 
@@ -55,7 +57,35 @@ def test_user():
     print("pack_unpack::test_user ---- PASSED")
 
 
+def test_error():
+    resp = ErrorResponse("error")
+    assert resp == ErrorResponse.unpack(resp.pack())
+
+    print("pack_unpack::test_error ---- PASSED")
+
+
+def test_echo():
+    # Request
+    req1 = EchoRequest("hello world")
+    req2 = EchoRequest("hello world!")
+
+    assert req1 == EchoRequest.unpack(req1.pack())
+    assert req2 == EchoRequest.unpack(req2.pack())
+    assert req1 != req2
+
+    # Response
+    resp1 = EchoResponse("hello world")
+    resp2 = EchoResponse("hello world!")
+
+    assert resp1 == EchoResponse.unpack(resp1.pack())
+    assert resp2 == EchoResponse.unpack(resp2.pack())
+    assert resp1 != resp2
+
+    print("pack_unpack::test_echo ---- PASSED")
+
+
 def test_auth():
+    # Request
     req1 = AuthRequest(AuthRequest.ActionType.CREATE_ACCOUNT,
                        "user1",
                        "password")
@@ -66,6 +96,10 @@ def test_auth():
     assert req1 == AuthRequest.unpack(req1.pack())
     assert req2 == AuthRequest.unpack(req2.pack())
     assert req1 != req2
+
+    # Response
+    resp = AuthResponse()
+    assert resp == AuthResponse.unpack(resp.pack())
 
     print("pack_unpack::test_auth ---- PASSED")
 
@@ -120,13 +154,16 @@ def test_list_users():
 
 
 def test_send_message():
-    req1 = SendMessageRequest(Message(sender="user1",
+    # Request
+    req1 = SendMessageRequest("user1",
+                              Message(sender="user1",
                                       receiver="user2",
                                       body="hello world",
                                       id=uuid.UUID(int=0),
                                       ts=0))
 
-    req2 = SendMessageRequest(Message(sender="user1",
+    req2 = SendMessageRequest("user1",
+                              Message(sender="user1",
                                       receiver="user2",
                                       body="hello world",
                                       id=uuid.UUID(int=0),
@@ -136,10 +173,15 @@ def test_send_message():
     assert req2 == SendMessageRequest.unpack(req2.pack())
     assert req1 != req2
 
+    # Response
+    resp = SendMessageResponse()
+    assert resp == SendMessageResponse.unpack(resp.pack())
+
     print("pack_unpack::test_send_message: ---- PASSED")
 
 
 def test_read_messages():
+    # Request
     ids1 = [uuid.UUID(int=i) for i in range(3)]
     ids2 = [uuid.UUID(int=i) for i in range(4)]
 
@@ -150,10 +192,15 @@ def test_read_messages():
     assert req2 == ReadMessagesRequest.unpack(req2.pack())
     assert req1 != req2
 
+    # Response
+    resp = ReadMessagesResponse()
+    assert resp == ReadMessagesResponse.unpack(resp.pack())
+
     print("pack_unpack::test_read_messages ---- PASSED")
 
 
 def test_delete_messages():
+    # Request
     ids1 = [uuid.UUID(int=i) for i in range(3)]
     ids2 = [uuid.UUID(int=i) for i in range(4)]
 
@@ -164,10 +211,15 @@ def test_delete_messages():
     assert req2 == DeleteMessagesRequest.unpack(req2.pack())
     assert req1 != req2
 
+    # Response
+    resp = DeleteMessagesResponse()
+    assert resp == DeleteMessagesResponse.unpack(resp.pack())
+
     print("pack_unpack::test_delete_messages: ---- PASSED")
 
 
 def test_delete_user():
+    # Request
     req1 = DeleteUserRequest("user1")
     req2 = DeleteUserRequest("user2")
 
@@ -175,13 +227,22 @@ def test_delete_user():
     assert req2 == DeleteUserRequest.unpack(req2.pack())
     assert req1 != req2
 
+    # Response
+    resp = DeleteUserResponse()
+    assert resp == DeleteUserResponse.unpack(resp.pack())
+
     print("pack_unpack::test_delete_user ---- PASSED")
 
 
 if __name__ == '__main__':
+    # Entity tests
     test_header()
     test_message()
     test_user()
+    test_error()
+
+    # Request response tests
+    test_echo()
     test_auth()
     test_get_messages()
     test_list_users()
