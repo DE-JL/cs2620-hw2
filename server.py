@@ -1,4 +1,4 @@
-import re
+from fnmatch import fnmatch
 import selectors
 import socket
 import types
@@ -7,7 +7,7 @@ import uuid
 from api import *
 from config import HOST, PORT, DEBUG
 from entity import *
-from utils import parse_request, is_valid_regex
+from utils import parse_request
 
 
 class Server:
@@ -60,7 +60,7 @@ class Server:
         conn.setblocking(False)
 
         # Store a context namespace for this particular connection
-        ctx = types.SimpleNamespace(addr=addr, outbound=b"")
+        ctx = types.SimpleNamespace(addr=addr, outbound=b"", username=None)
         self.sel.register(conn, selectors.EVENT_READ | selectors.EVENT_WRITE, data=ctx)
 
     def service_connection(self, key: selectors.SelectorKey, mask: int):
@@ -83,9 +83,20 @@ class Server:
 
             # Check if the client closed the connection
             if not recvd or len(recvd) != Header.SIZE:
-                print(f"Closing connection to {ctx.addr}")
+                # Need to log the user out if the client was logged in
+                username = ctx.username
+                if username:
+                    assert username in self.users
+                    user = self.users[username]
+                    user.logout()
+
+                # Close the connection
                 self.sel.unregister(sock)
                 sock.close()
+                print(f"Closed connection to {ctx.addr}")
+
+                if DEBUG:
+                    self.log()
                 return
 
             # Unpack the header and receive the payload
@@ -99,10 +110,11 @@ class Server:
 
             # Handle the request
             self.handle_request(ctx, request)
+            if DEBUG:
+                self.log()
 
-        # Check if the socket is ready for writing
+        # Send a response if it exists
         if mask & selectors.EVENT_WRITE:
-            # Only write to the socket if the outbound has data
             if ctx.outbound:
                 sent = sock.send(ctx.outbound)
                 ctx.outbound = ctx.outbound[sent:]
@@ -138,23 +150,25 @@ class Server:
         username, password = request.username, request.password
         match request.action_type:
             case AuthRequest.ActionType.CREATE_ACCOUNT:
-                if self.users.get(username) is None:
-                    self.users[username] = User(username=username, password=password)
-                    resp = AuthResponse()
+                if username in self.users:
+                    resp = ErrorResponse(f"Create account failed: user \"{username}\" already exists.")
                 else:
-                    resp = ErrorResponse(f"Create account failed: user\"{username}\" already exists.")
+                    self.users[username] = User(username=username, password=password)
+                    ctx.username = username
+                    resp = AuthResponse()
 
             case AuthRequest.ActionType.LOGIN:
-                if self.users.get(username) is None:
+                if username not in self.users:
                     resp = ErrorResponse(f"Login failed: user \"{username}\" does not exist.")
                 elif password != self.users[username].password:
                     resp = ErrorResponse(f"Login failed: incorrect password.")
                 else:
                     self.users[username].login()
+                    ctx.username = username
                     resp = AuthResponse()
 
             case _:
-                print("Unknown AuthRequest action type")
+                print("Unknown AuthRequest action type.")
                 exit(1)
 
         # Send the response
@@ -162,7 +176,7 @@ class Server:
 
     def handle_get_messages(self, ctx: types.SimpleNamespace, request: GetMessagesRequest):
         username = request.username
-        assert username in self.users
+        self.assert_online(ctx, username)
 
         # Grab all messages associated with the user
         message_ids = self.users[username].message_ids
@@ -173,39 +187,43 @@ class Server:
         ctx.outbound += resp.pack()
 
     def handle_list_users(self, ctx: types.SimpleNamespace, request: ListUsersRequest):
-        pattern = request.pattern
+        username, pattern = request.username, request.pattern
+        self.assert_online(ctx, username)
 
-        # Check if pattern is valid
-        if not is_valid_regex(pattern):
-            matches = []
-        else:
-            regex = re.compile(pattern)
-            matches = [username for username in self.users if regex.search(username)]
+        matches = [username for username in self.users if fnmatch(username, pattern)]
+        if DEBUG:
+            print(f"Pattern {pattern} matched users: {matches}")
 
         # Send the response
         resp = ListUsersResponse(matches)
         ctx.outbound += resp.pack()
 
     def handle_send_message(self, ctx: types.SimpleNamespace, request: SendMessageRequest):
-        message = request.message
+        username, message = request.username, request.message
+        self.assert_online(ctx, username)
+
+        # Assert that the message does not already exist and the request user matches the sender
         assert message.id not in self.messages
+        assert username == message.sender
 
-        # Store the message
-        self.messages[message.id] = message
+        if message.receiver not in self.users:
+            resp = ErrorResponse(f"Send message failed: recipient \"{message.receiver}\" does not exist.")
+        else:
+            # Store the message
+            self.messages[message.id] = message
 
-        # Get the receiver
-        assert message.receiver in self.users
-        receiver = self.users[message.receiver]
+            # Add the message to the receiver's inbox
+            receiver = self.users[message.receiver]
+            receiver.add_message(message.id)
 
-        # Add the message ID
-        receiver.add_message(message.id)
+            resp = SendMessageResponse()
 
         # Send the response
-        resp = SendMessageResponse()
         ctx.outbound += resp.pack()
 
     def handle_read_messages(self, ctx: types.SimpleNamespace, request: ReadMessagesRequest):
         username, message_ids = request.username, request.message_ids
+        self.assert_online(ctx, username)
 
         # Set the read flag for each message in the request
         for message_id in message_ids:
@@ -225,9 +243,9 @@ class Server:
 
     def handle_delete_messages(self, ctx: types.SimpleNamespace, request: DeleteMessagesRequest):
         username, message_ids = request.username, request.message_ids
+        self.assert_online(ctx, username)
 
         # Get the receiver
-        assert username in self.users
         receiver = self.users[username]
 
         # Delete the messages one by one
@@ -252,9 +270,9 @@ class Server:
 
     def handle_delete_user(self, ctx: types.SimpleNamespace, request: DeleteUserRequest):
         username = request.username
+        self.assert_online(ctx, username)
 
         # Get the user
-        assert username in self.users
         user = self.users[username]
 
         # Delete all messages sent to that user
@@ -265,9 +283,25 @@ class Server:
         # Delete the user
         del self.users[username]
 
+        # Update the context
+        if ctx.username == username:
+            ctx.username = None
+
         # Send the response
         resp = DeleteUserResponse()
         ctx.outbound += resp.pack()
+
+    def assert_online(self, ctx: types.SimpleNamespace, username: str):
+        assert username in self.users
+        assert self.users[username].online
+        # TODO: we should really check if ctx.username == username
+        # However, for our simple testing all the users are actually on the same connection
+
+    def log(self):
+        print("\n-------------------------------- SERVER STATE --------------------------------")
+        print(f"Users: {self.users}")
+        print(f"Messages: {self.messages}")
+        print("------------------------------------------------------------------------------\n")
 
 
 def main():

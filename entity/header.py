@@ -11,7 +11,7 @@ class RequestType(Enum):
     LIST_USERS = 3
     SEND_MESSAGE = 4
     READ_MESSAGES = 5
-    DELETE_MESSAGES = 5
+    DELETE_MESSAGES = 6
     DELETE_USER = 7
 
 

@@ -1,5 +1,4 @@
 import netifaces
-import re
 
 from api import *
 from entity import RequestType
@@ -16,14 +15,6 @@ def get_ipaddr():
     except ValueError:
         # 'en0' might not exist on this machine
         return None
-
-
-def is_valid_regex(pattern: str) -> bool:
-    try:
-        re.compile(pattern)
-        return True
-    except re.error:
-        return False
 
 
 def parse_request(request_type: RequestType, data: bytes):

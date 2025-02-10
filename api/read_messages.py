@@ -21,7 +21,7 @@ class ReadMessagesRequest:
         return (self.username == other.username and
                 self.message_ids == other.message_ids)
 
-    def __str(self):
+    def __str__(self):
         return f"ReadMessagesRequest({self.username}, {self.message_ids})"
 
     def pack(self):
