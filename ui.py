@@ -2,13 +2,14 @@ import socket
 import sys
 import argparse
 from sys import argv
-import time, datetime
+import time
+from datetime import datetime
 
 from PyQt5.QtWidgets import QApplication, QFrame, QLabel, QListWidget, QWidget, QListWidgetItem
-from PyQt5.QtWidgets import QMainWindow, QVBoxLayout, QDesktopWidget, QHBoxLayout
+from PyQt5.QtWidgets import QMainWindow, QVBoxLayout, QDesktopWidget, QHBoxLayout, QAbstractItemView
 from PyQt5.QtWidgets import QGridLayout
 from PyQt5.QtCore import Qt
-from PyQt5.QtGui import QFont
+from PyQt5.QtGui import QFont, QIntValidator
 from PyQt5.QtWidgets import QPushButton
 from PyQt5.QtWidgets import QMessageBox, QLineEdit, QTextEdit
 from PyQt5.QtCore import QObject, pyqtSignal, pyqtSlot
@@ -17,7 +18,7 @@ from PyQt5.QtCore import QThread
 
 
 from config import HOST, PORT
-from entity import User, Message, RequestType, ResponseType, DataType, Header
+from entity import Message, ResponseType, Header
 
 import api
 
@@ -52,12 +53,13 @@ class UserSession:
         self.messages = None
 
         # initialize connection for main GUI thread
-        try:
-            self.sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-            self.sock.connect((host, port))
-        except ConnectionRefusedError:
-            print("Connection refused. Please check if the server is running.")
-            sys.exit(1)
+        if not self.debug:
+            try:
+                self.sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+                self.sock.connect((host, port))
+            except ConnectionRefusedError:
+                print("Connection refused. Please check if the server is running.")
+                sys.exit(1)
 
         # Register event handlers
         self.main_frame.login.login_button.clicked.connect(self.authenticate_user)
@@ -121,7 +123,9 @@ class UserSession:
         self.authenticate_user(api.AuthRequest.ACTION_LOGIN)
 
     def sign_out(self):
-        self.stop_logged_session()
+
+        if not self.debug:
+            self.stop_logged_session()
         print("Signing out...")
         # hide logged in frame
         self.main_frame.logged_in.hide()
@@ -195,19 +199,34 @@ class UserSession:
             print("No messages selected")
             return  # Nothing to delete
 
+        ids_to_delete = []
         for item in selected_items:
             # Retrieve the original Message object
             msg = item.data(Qt.UserRole)
-            
-            # TODO: Optionally remove the message from your server/database here
-            # e.g. self.server_api.delete_message(msg.id)
+            ids_to_delete.append(msg.id)
 
-            # Remove the item from the list widget
-            row = self.message_list.row(item)
-            self.message_list.takeItem(row)
+        delete_messages_request = api.DeleteMessagesRequest(self.username, ids_to_delete)
+        self.sock.sendall(delete_messages_request.pack())
+
+        recvd = self.sock.recv(Header.SIZE, socket.MSG_WAITALL)
+        header = Header.unpack(recvd)
+
+        if ResponseType(header.header_type) != ResponseType.DELETE_MESSAGES:
+            QMessageBox.critical(self.window, 'Error', "Error with request to delete messages")
+            return
 
     def read_messages_event(self):
-        pass
+        num_to_read = int(self.main_frame.view_messages.num_read_entry.text())
+        # make read message request
+        read_messages_request = api.ReadMessagesRequest(self.username, num_to_read)
+        self.sock.sendall(read_messages_request.pack())
+
+        recvd = self.sock.recv(Header.SIZE, socket.MSG_WAITALL)
+        header = Header.unpack(recvd)
+
+        if ResponseType(header.header_type) != ResponseType.READ_MESSAGES:
+            QMessageBox.critical(self.window, 'Error', "Error with request to read messages")
+            return
 
 
     def start_logged_session(self):
@@ -465,9 +484,11 @@ class ViewMessage(QWidget):
         self.unread_count_label = QLabel("Unread Messages")
         self.num_read_label = QLabel("Number of Messages to Read: ")
         self.num_read_entry = QLineEdit()
+        self.num_read_entry.setValidator(QIntValidator(0,100))
         self.read_button = QPushButton("Read Messages")
 
-        self.unread_box = QHBoxLayout()
+        self.unread_box = QVBoxLayout()
+        self.unread_box.addWidget(self.frame_label)
         self.unread_box.addWidget(self.unread_count_label)
         self.unread_box.addWidget(self.num_read_label)
         self.unread_box.addWidget(self.num_read_entry)
@@ -477,33 +498,50 @@ class ViewMessage(QWidget):
         self.unread_box.addWidget(self.delete_button)
 
         self.message_list = QListWidget()
+        self.message_list.setSelectionMode(QAbstractItemView.MultiSelection)
         self.message_list.setFont(QFont("Courier", 10))
 
-        self.frame_layout.addWidget(self.frame_label)
         self.frame_layout.addLayout(self.unread_box)
         self.frame_layout.addWidget(self.message_list)
 
         self.setLayout(self.frame_layout)
     
     def update_message_list(self, messages):
+        selected_ids = set()
+        for item in self.message_list.selectedItems():
+            msg = item.data(Qt.UserRole)
+            selected_ids.add(msg.id)
+
         messages.sort(key = lambda x: x.ts, reverse=True)
+
+        num_unread = 0
 
         self.message_list.clear()
         for message in messages:
-            if not message.read:
-                # Convert timestamp to a readable string
-                time_str = datetime.fromtimestamp(message.ts).strftime('%Y-%m-%d %H:%M:%S')
-                
-                # Create a display string
-                display_text = f"[{time_str}] {message.sender}: {message.body}"
 
-                # Create a list item
-                item = QListWidgetItem(display_text)
+            if message.read:
+                num_unread += 1
+                continue
 
-                # Store the entire Message object in user data
-                item.setData(Qt.UserRole, message)
+            # Convert timestamp to a readable string
+            time_str = datetime.fromtimestamp(message.ts).strftime('%Y-%m-%d %H:%M:%S')
+            
+            # Create a display string
+            display_text = f"[{time_str}] {message.sender}: {message.body}"
 
-                self.message_list.addItem(item)
+            # Create a list item
+            item = QListWidgetItem(display_text)
+
+            # Store the entire Message object in user data
+            item.setData(Qt.UserRole, message)
+
+            # Make sure previously selected items are selected
+            if message.id in selected_ids:
+                item.setSelected(True)
+
+            self.message_list.addItem(item)
+        
+        self.unread_count_label.setText(f"Unread Messages: {num_unread}")
 
 
 
@@ -564,7 +602,7 @@ def main():
 
     parser.add_argument("port", type = int, metavar = 'port', help = "The port at which the server is listening")
 
-    parser.add_argument("debug", type=bool, metavar = 'debug', help = "Enable debug mode, don't connect to the server")
+    parser.add_argument("debug", type=bool, default=False, metavar = 'debug', help = "Enable debug mode, don't connect to the server")
 
     args = parser.parse_args()
 
@@ -579,18 +617,19 @@ def main():
     central = Central(send_message, list_account)
     view_messages = ViewMessage()
 
-
     main_frame = MainFrame(login, logged_in, central, view_messages)
 
     window = create_window(main_frame)
 
     # hide central frames
-    logged_in.hide()
-    central.hide()
-    view_messages.hide()
-
-    # create a user session
     if not args.debug:
+        logged_in.hide()
+        central.hide()
+        view_messages.hide()
+
+        user_session = UserSession(args.host, args.port, main_frame, window, False)
+    else:
+        view_messages.update_message_list(SAMPLE_DATA)
         user_session = UserSession(args.host, args.port, main_frame, window, True)
 
 
