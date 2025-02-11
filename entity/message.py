@@ -1,4 +1,4 @@
-from dataclasses import dataclass, field
+from pydantic import BaseModel, Field
 import struct
 import time
 import uuid
@@ -7,14 +7,13 @@ from .header import DataType, Header
 from config import PROTOCOL_TYPE
 
 
-@dataclass
-class Message:
+class Message(BaseModel):
     sender: str
     receiver: str
     body: str
-    id: uuid.UUID = field(default_factory=uuid.uuid4)
-    ts: float = field(default_factory=time.time)
-    read: bool = field(default=False)
+    id: uuid.UUID = Field(default_factory=uuid.uuid4)
+    ts: float = Field(default_factory=time.time)
+    read: bool = Field(default=False)
 
     def set_read(self):
         self.read = True
@@ -37,11 +36,18 @@ class Message:
                                self.read)
 
             # Prepend the protocol header
-            header = Header(DataType.MESSAGE.value)
+            header = Header(header_type=DataType.MESSAGE.value,
+                            payload_size=len(data))
             return header.pack() + data
         else:
-            # TODO
-            raise Exception("json not implemented yet")
+            # Encode the data
+            json_str = self.model_dump_json()
+            data = json_str.encode("utf-8")
+
+            # Prepend the protocol header
+            header = Header(header_type=DataType.MESSAGE.value,
+                            payload_size=len(data))
+            return header.pack() + data
 
     @staticmethod
     def unpack(data: bytes) -> "Message":
@@ -73,5 +79,12 @@ class Message:
                            ts=ts,
                            read=read)
         else:
-            # TODO
-            raise Exception("json not implemented yet")
+            # Verify the protocol header data type
+            header = Header.unpack(data)
+            assert DataType(header.header_type) == DataType.MESSAGE
+            data = data[Header.SIZE:]
+
+            # Decode the data
+            json_str = data.decode("utf-8")
+
+            return Message.model_validate_json(json_str)

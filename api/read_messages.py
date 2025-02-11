@@ -1,41 +1,44 @@
-import json
 import struct
 import uuid
+
+from pydantic import BaseModel
 
 from .utils import pack_uuids, unpack_uuids
 from config import PROTOCOL_TYPE
 from entity import *
 
 
-class ReadMessagesRequest:
+class ReadMessagesRequest(BaseModel):
     """
     Read messages request.
     :var message_ids: The IDs of the messages to be marked as read.
     """
-
-    def __init__(self, username: str, message_ids: list[uuid.UUID]):
-        self.username = username
-        self.message_ids = message_ids
-
-    def __eq__(self, other):
-        return (self.username == other.username and
-                self.message_ids == other.message_ids)
-
-    def __str__(self):
-        return f"ReadMessagesRequest({self.username}, {self.message_ids})"
+    username: str
+    message_ids: list[uuid.UUID]
 
     def pack(self):
-        # Encode the data
-        username_bytes = self.username.encode("utf-8")
+        if PROTOCOL_TYPE != "json":
+            # Encode the data
+            username_bytes = self.username.encode("utf-8")
 
-        # Pack the data
-        pack_format = f"!I {len(username_bytes)}s"
-        data = struct.pack(pack_format, len(username_bytes), username_bytes)
-        data += pack_uuids(self.message_ids)
+            # Pack the data
+            pack_format = f"!I {len(username_bytes)}s"
+            data = struct.pack(pack_format, len(username_bytes), username_bytes)
+            data += pack_uuids(self.message_ids)
 
-        # Prepend the protocol header
-        header = Header(ResponseType.READ_MESSAGES.value, len(data))
-        return header.pack() + data
+            # Prepend the protocol header
+            header = Header(header_type=ResponseType.READ_MESSAGES.value,
+                            payload_size=len(data))
+            return header.pack() + data
+        else:
+            # Encode the data
+            json_str = self.model_dump_json()
+            data = json_str.encode("utf-8")
+
+            # Prepend the protocol header
+            header = Header(header_type=ResponseType.READ_MESSAGES.value,
+                            payload_size=len(data))
+            return header.pack() + data
 
     @staticmethod
     def unpack(data: bytes):
@@ -59,42 +62,33 @@ class ReadMessagesRequest:
             # Unpack the message IDs
             message_ids = unpack_uuids(data)
 
-            return ReadMessagesRequest(username, message_ids)
+            return ReadMessagesRequest(username=username,
+                                       message_ids=message_ids)
         else:
-            # TODO
-            raise Exception("json not implemented yet")
+            # Verify the protocol header request type
+            header = Header.unpack(data)
+            assert RequestType(header.header_type) == RequestType.READ_MESSAGES
+            data = data[Header.SIZE:]
+
+            # Decode the data
+            json_str = data.decode("utf-8")
+
+            return ReadMessagesRequest.model_validate_json(json_str)
 
 
-class ReadMessagesResponse:
+class ReadMessagesResponse(BaseModel):
     """
     Read messages response.
     """
 
-    def __init__(self):
-        return
-
-    def __eq__(self, other):
-        return isinstance(other, ReadMessagesResponse)
-
-    def __str__(self):
-        return "ReadMessagesResponse()"
-
     @staticmethod
     def pack() -> bytes:
-        if PROTOCOL_TYPE != "json":
-            return Header(ResponseType.READ_MESSAGES.value).pack()
-        else:
-            # TODO
-            raise Exception("json not implemented yet")
+        return Header(header_type=ResponseType.READ_MESSAGES.value).pack()
 
     @staticmethod
     def unpack(data: bytes) -> "ReadMessagesResponse":
-        if PROTOCOL_TYPE != "json":
-            # Verify the protocol header response type
-            header = Header.unpack(data)
-            assert ResponseType(header.header_type) == ResponseType.READ_MESSAGES
+        # Verify the protocol header response type
+        header = Header.unpack(data)
+        assert ResponseType(header.header_type) == ResponseType.READ_MESSAGES
 
-            return ReadMessagesResponse()
-        else:
-            # TODO
-            raise Exception("json not implemented yet")
+        return ReadMessagesResponse()

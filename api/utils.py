@@ -15,7 +15,8 @@ def pack_messages(messages: list[Message]) -> bytes:
         data += message_bytes
 
     # Prepend the protocol header
-    header = Header(DataType.LIST.value, len(data))
+    header = Header(header_type=DataType.LIST.value,
+                    payload_size=len(data))
     return header.pack() + data
 
 
@@ -57,7 +58,8 @@ def pack_strings(strings: list[str]) -> bytes:
         data += string_bytes
 
     # Prepend the protocol header
-    header = Header(DataType.LIST.value, len(data))
+    header = Header(header_type=DataType.LIST.value,
+                    payload_size=len(data))
     return header.pack() + data
 
 
@@ -98,7 +100,8 @@ def pack_uuids(uuids: list[uuid.UUID]) -> bytes:
         data += struct.pack("!16s", uid.bytes)
 
     # Prepend the protocol header
-    header = Header(DataType.LIST.value, len(data))
+    header = Header(header_type=DataType.LIST.value,
+                    payload_size=len(data))
     return header.pack() + data
 
 

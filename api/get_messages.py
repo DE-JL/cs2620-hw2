@@ -1,25 +1,18 @@
-import json
 import struct
+
+from pydantic import BaseModel
 
 from .utils import pack_messages, unpack_messages
 from config import PROTOCOL_TYPE
 from entity import *
 
 
-class GetMessagesRequest:
+class GetMessagesRequest(BaseModel):
     """
     Get messages request.
     :var username: The username to get messages for.
     """
-
-    def __init__(self, username):
-        self.username = username
-
-    def __eq__(self, other):
-        return self.username == other.username
-
-    def __str__(self):
-        return f"GetMessagesRequest({self.username})"
+    username: str
 
     def pack(self):
         if PROTOCOL_TYPE != "json":
@@ -31,19 +24,18 @@ class GetMessagesRequest:
             data = struct.pack(pack_format, len(username_bytes), username_bytes)
 
             # Prepend the protocol header
-            header = Header(RequestType.GET_MESSAGES.value, len(data))
+            header = Header(header_type=RequestType.GET_MESSAGES.value,
+                            payload_size=len(data))
             return header.pack() + data
         else:
-            # Encode the JSON object
-            obj = {
-                "username": self.username,
-            }
-            obj_str = json.dumps(obj)
-            obj_bytes = obj_str.encode("utf-8")
+            # Encode the data
+            json_str = self.model_dump_json()
+            data = json_str.encode("utf-8")
 
             # Prepend the protocol header
-            header = Header(RequestType.GET_MESSAGES.value, len(obj_bytes))
-            return header.pack() + obj_bytes
+            header = Header(header_type=RequestType.GET_MESSAGES.value,
+                            payload_size=len(data))
+            return header.pack() + data
 
     @staticmethod
     def unpack(data: bytes):
@@ -65,30 +57,25 @@ class GetMessagesRequest:
             # Decode the data
             username = username_bytes.decode("utf-8")
 
-            return GetMessagesRequest(username)
+            return GetMessagesRequest(username=username)
         else:
-            # TODO: discard the protocol header
-            # Decode and load the JSON object
-            obj_str = data.decode("utf-8")
-            obj = json.loads(obj_str)
+            # Verify the protocol header request type
+            header = Header.unpack(data)
+            assert RequestType(header.header_type) == RequestType.GET_MESSAGES
+            data = data[Header.SIZE:]
 
-            return GetMessagesRequest(obj["username"])
+            # Decode the data
+            json_str = data.decode("utf-8")
+
+            return GetMessagesRequest.model_validate_json(json_str)
 
 
-class GetMessagesResponse:
+class GetMessagesResponse(BaseModel):
     """
     Get messages response.
     :var messages: The messages retrieved
     """
-
-    def __init__(self, messages: list[Message]):
-        self.messages = messages
-
-    def __eq__(self, other):
-        return self.messages == other.messages
-
-    def __str__(self):
-        return f"GetMessagesResponse({self.messages})"
+    messages: list[Message]
 
     def pack(self) -> bytes:
         if PROTOCOL_TYPE != "json":
@@ -96,11 +83,18 @@ class GetMessagesResponse:
             data = pack_messages(self.messages)
 
             # Prepend the protocol header
-            header = Header(ResponseType.GET_MESSAGES.value, len(data))
+            header = Header(header_type=ResponseType.GET_MESSAGES.value,
+                            payload_size=len(data))
             return header.pack() + data
         else:
-            # TODO
-            raise Exception("json not implemented yet")
+            # Encode the data
+            json_str = self.model_dump_json()
+            data = json_str.encode("utf-8")
+
+            # Prepend the protocol header
+            header = Header(header_type=ResponseType.GET_MESSAGES.value,
+                            payload_size=len(data))
+            return header.pack() + data
 
     @staticmethod
     def unpack(data: bytes) -> "GetMessagesResponse":
@@ -113,7 +107,14 @@ class GetMessagesResponse:
             # Unpack the messages
             messages = unpack_messages(data)
 
-            return GetMessagesResponse(messages)
+            return GetMessagesResponse(messages=messages)
         else:
-            # TODO
-            raise Exception("json not implemented yet")
+            # Verify the protocol header response type
+            header = Header.unpack(data)
+            assert ResponseType(header.header_type) == ResponseType.GET_MESSAGES
+            data = data[Header.SIZE:]
+
+            # Decode the data
+            json_str = data.decode("utf-8")
+
+            return GetMessagesResponse.model_validate_json(json_str)

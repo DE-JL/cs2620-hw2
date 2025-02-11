@@ -30,10 +30,10 @@ def test_auth(sock: socket.socket):
     4. Successful account creation and login.
     """
     # ========================================== TEST ========================================== #
-    req = AuthRequest(AuthRequest.ActionType.LOGIN,
-                      "user1",
-                      "password")
-    exp = ErrorResponse("Login failed: user \"user1\" does not exist.")
+    req = AuthRequest(action_type=AuthRequest.ActionType.LOGIN,
+                      username="user1",
+                      password="password")
+    exp = ErrorResponse(message="Login failed: user \"user1\" does not exist.")
 
     sock.sendall(req.pack())
     resp = ErrorResponse.unpack(recv_resp_bytes(sock))
@@ -42,9 +42,9 @@ def test_auth(sock: socket.socket):
     # ========================================================================================== #
 
     # ========================================== TEST ========================================== #
-    req = AuthRequest(AuthRequest.ActionType.CREATE_ACCOUNT,
-                      "user1",
-                      "password")
+    req = AuthRequest(action_type=AuthRequest.ActionType.CREATE_ACCOUNT,
+                      username="user1",
+                      password="password")
     exp = AuthResponse()
 
     sock.sendall(req.pack())
@@ -54,10 +54,10 @@ def test_auth(sock: socket.socket):
     # ========================================================================================== #
 
     # ========================================== TEST ========================================== #
-    req = AuthRequest(AuthRequest.ActionType.CREATE_ACCOUNT,
-                      "user1",
-                      "password")
-    exp = ErrorResponse("Create account failed: user \"user1\" already exists.")
+    req = AuthRequest(action_type=AuthRequest.ActionType.CREATE_ACCOUNT,
+                      username="user1",
+                      password="password")
+    exp = ErrorResponse(message="Create account failed: user \"user1\" already exists.")
 
     sock.sendall(req.pack())
     resp = ErrorResponse.unpack(recv_resp_bytes(sock))
@@ -66,10 +66,10 @@ def test_auth(sock: socket.socket):
     # ========================================================================================== #
 
     # ========================================== TEST ========================================== #
-    req = AuthRequest(AuthRequest.ActionType.LOGIN,
-                      "user1",
-                      "wrong_password")
-    exp = ErrorResponse("Login failed: incorrect password.")
+    req = AuthRequest(action_type=AuthRequest.ActionType.LOGIN,
+                      username="user1",
+                      password="wrong_password")
+    exp = ErrorResponse(message="Login failed: incorrect password.")
 
     sock.sendall(req.pack())
     resp = ErrorResponse.unpack(recv_resp_bytes(sock))
@@ -88,9 +88,9 @@ def test_send_and_get(sock: socket.socket):
     3. Retrieve the messages from user1 and user2.
     """
     # ========================================== TEST ========================================== #
-    req = AuthRequest(AuthRequest.ActionType.CREATE_ACCOUNT,
-                      "user2",
-                      "password")
+    req = AuthRequest(action_type=AuthRequest.ActionType.CREATE_ACCOUNT,
+                      username="user2",
+                      password="password")
     exp = AuthResponse()
 
     sock.sendall(req.pack())
@@ -105,8 +105,9 @@ def test_send_and_get(sock: socket.socket):
                           body="hello user3!",
                           id=uuid.UUID(int=0),
                           ts=0)
-    req = SendMessageRequest("user1", invalid_msg)
-    exp = ErrorResponse("Send message failed: recipient \"user3\" does not exist.")
+    req = SendMessageRequest(username="user1",
+                             message=invalid_msg)
+    exp = ErrorResponse(message="Send message failed: recipient \"user3\" does not exist.")
 
     sock.sendall(req.pack())
     resp = ErrorResponse.unpack(recv_resp_bytes(sock))
@@ -120,7 +121,8 @@ def test_send_and_get(sock: socket.socket):
                    body="hello user2!",
                    id=uuid.UUID(int=1),
                    ts=1)
-    req = SendMessageRequest("user1", msg1)
+    req = SendMessageRequest(username="user1",
+                             message=msg1)
     exp = SendMessageResponse()
 
     sock.sendall(req.pack())
@@ -135,7 +137,8 @@ def test_send_and_get(sock: socket.socket):
                    body="how are you doing, user2?",
                    id=uuid.UUID(int=2),
                    ts=2)
-    req = SendMessageRequest("user1", msg2)
+    req = SendMessageRequest(username="user1",
+                             message=msg2)
     exp = SendMessageResponse()
 
     sock.sendall(req.pack())
@@ -145,8 +148,8 @@ def test_send_and_get(sock: socket.socket):
     # ========================================================================================== #
 
     # ========================================== TEST ========================================== #
-    req = GetMessagesRequest("user1")
-    exp = GetMessagesResponse([])
+    req = GetMessagesRequest(username="user1")
+    exp = GetMessagesResponse(messages=[])
 
     sock.sendall(req.pack())
     resp = GetMessagesResponse.unpack(recv_resp_bytes(sock))
@@ -155,8 +158,8 @@ def test_send_and_get(sock: socket.socket):
     # ========================================================================================== #
 
     # ========================================== TEST ========================================== #
-    req = GetMessagesRequest("user2")
-    exp = GetMessagesResponse([msg1, msg2])
+    req = GetMessagesRequest(username="user2")
+    exp = GetMessagesResponse(messages=[msg1, msg2])
 
     sock.sendall(req.pack())
     resp = GetMessagesResponse.unpack(recv_resp_bytes(sock))
@@ -174,8 +177,8 @@ def test_list_users(sock: socket.socket):
     2. List all users of the form a*.
     """
     # ========================================== TEST ========================================== #
-    req = ListUsersRequest("user1", "user*")
-    exp = ListUsersResponse(["user1", "user2"])
+    req = ListUsersRequest(username="user1", pattern="user*")
+    exp = ListUsersResponse(usernames=["user1", "user2"])
 
     sock.sendall(req.pack())
     resp = ListUsersResponse.unpack(recv_resp_bytes(sock))
@@ -184,8 +187,8 @@ def test_list_users(sock: socket.socket):
     # ========================================================================================== #
 
     # ========================================== TEST ========================================== #
-    req = ListUsersRequest("user1", "a*")
-    exp = ListUsersResponse([])
+    req = ListUsersRequest(username="user1", pattern="a*")
+    exp = ListUsersResponse(usernames=[])
 
     sock.sendall(req.pack())
     resp = ListUsersResponse.unpack(recv_resp_bytes(sock))
@@ -204,7 +207,7 @@ def test_read_messages(sock: socket.socket):
     2. Get the messages for user2 and assert that they are now read.
     """
     # ========================================== TEST ========================================== #
-    req = GetMessagesRequest("user2")
+    req = GetMessagesRequest(username="user2")
 
     sock.sendall(req.pack())
     resp = GetMessagesResponse.unpack(recv_resp_bytes(sock))
@@ -217,7 +220,8 @@ def test_read_messages(sock: socket.socket):
     # ========================================================================================== #
 
     # ========================================== TEST ========================================== #
-    req = ReadMessagesRequest("user2", message_ids)
+    req = ReadMessagesRequest(username="user2",
+                              message_ids=message_ids)
     exp = ReadMessagesResponse()
 
     sock.sendall(req.pack())
@@ -227,7 +231,7 @@ def test_read_messages(sock: socket.socket):
     # ========================================================================================== #
 
     # ========================================== TEST ========================================== #
-    req = GetMessagesRequest("user2")
+    req = GetMessagesRequest(username="user2")
 
     sock.sendall(req.pack())
     resp = GetMessagesResponse.unpack(recv_resp_bytes(sock))
@@ -249,7 +253,7 @@ def test_delete_messages(sock: socket.socket):
     """
     # ========================================== TEST ========================================== #
     print("test_delete_messages --------------- starting")
-    req = GetMessagesRequest("user2")
+    req = GetMessagesRequest(username="user2")
 
     sock.sendall(req.pack())
     resp = GetMessagesResponse.unpack(recv_resp_bytes(sock))
@@ -259,7 +263,8 @@ def test_delete_messages(sock: socket.socket):
     # ========================================================================================== #
 
     # ========================================== TEST ========================================== #
-    req = DeleteMessagesRequest("user2", message_ids)
+    req = DeleteMessagesRequest(username="user2",
+                                message_ids=message_ids)
     exp = DeleteMessagesResponse()
 
     sock.sendall(req.pack())
@@ -269,8 +274,8 @@ def test_delete_messages(sock: socket.socket):
     # ========================================================================================== #
 
     # ========================================== TEST ========================================== #
-    req = GetMessagesRequest("user2")
-    exp = GetMessagesResponse([])
+    req = GetMessagesRequest(username="user2")
+    exp = GetMessagesResponse(messages=[])
 
     sock.sendall(req.pack())
     resp = GetMessagesResponse.unpack(recv_resp_bytes(sock))
@@ -296,7 +301,8 @@ def test_delete_user(sock: socket.socket):
                   body="hello user2!",
                   id=uuid.UUID(int=1),
                   ts=1)
-    req = SendMessageRequest("user1", msg)
+    req = SendMessageRequest(username="user1",
+                             message=msg)
     exp = SendMessageResponse()
 
     sock.sendall(req.pack())
@@ -306,7 +312,7 @@ def test_delete_user(sock: socket.socket):
     # ========================================================================================== #
 
     # ========================================== TEST ========================================== #
-    req = DeleteUserRequest("user2")
+    req = DeleteUserRequest(username="user2")
     exp = DeleteUserResponse()
 
     sock.sendall(req.pack())
@@ -316,10 +322,10 @@ def test_delete_user(sock: socket.socket):
     # ========================================================================================== #
 
     # ========================================== TEST ========================================== #
-    req = AuthRequest(AuthRequest.ActionType.LOGIN,
-                      "user2",
-                      "password")
-    exp = ErrorResponse("Login failed: user \"user2\" does not exist.")
+    req = AuthRequest(action_type=AuthRequest.ActionType.LOGIN,
+                      username="user2",
+                      password="password")
+    exp = ErrorResponse(message="Login failed: user \"user2\" does not exist.")
 
     sock.sendall(req.pack())
     resp = ErrorResponse.unpack(recv_resp_bytes(sock))
@@ -328,9 +334,9 @@ def test_delete_user(sock: socket.socket):
     # ========================================================================================== #
 
     # ========================================== TEST ========================================== #
-    req = AuthRequest(AuthRequest.ActionType.LOGIN,
-                      "user1",
-                      "password")
+    req = AuthRequest(action_type=AuthRequest.ActionType.LOGIN,
+                      username="user1",
+                      password="password")
     exp = AuthResponse()
 
     sock.sendall(req.pack())
@@ -345,8 +351,9 @@ def test_delete_user(sock: socket.socket):
                   body="are you still alive",
                   id=uuid.UUID(int=0),
                   ts=0)
-    req = SendMessageRequest("user1", msg)
-    exp = ErrorResponse("Send message failed: recipient \"user2\" does not exist.")
+    req = SendMessageRequest(username="user1",
+                             message=msg)
+    exp = ErrorResponse(message="Send message failed: recipient \"user2\" does not exist.")
 
     sock.sendall(req.pack())
     resp = ErrorResponse.unpack(recv_resp_bytes(sock))

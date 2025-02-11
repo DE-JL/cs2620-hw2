@@ -1,28 +1,20 @@
-import json
 import struct
+
+from pydantic import BaseModel
 
 from .utils import pack_strings, unpack_strings
 from config import PROTOCOL_TYPE
 from entity import *
 
 
-class ListUsersRequest:
+class ListUsersRequest(BaseModel):
     """
     List users request.
     :var username: The username of the user requesting accounts matching pattern.
     :var pattern: The regex pattern to match.
     """
-
-    def __init__(self, username: str, pattern: str):
-        self.username = username
-        self.pattern = pattern
-
-    def __eq__(self, other):
-        return (self.username == other.username and
-                self.pattern == other.pattern)
-
-    def __str__(self):
-        return f"ListAccounts({self.username}, {self.pattern})"
+    username: str
+    pattern: str
 
     def pack(self):
         if PROTOCOL_TYPE != "json":
@@ -37,20 +29,18 @@ class ListUsersRequest:
                                username_bytes, pattern_bytes)
 
             # Prepend the protocol header
-            header = Header(RequestType.LIST_USERS.value, len(data))
+            header = Header(header_type=RequestType.LIST_USERS.value,
+                            payload_size=len(data))
             return header.pack() + data
         else:
-            # Encode the JSON object
-            obj = {
-                "username": self.username,
-                "pattern": self.pattern
-            }
-            obj_str = json.dumps(obj)
-            obj_bytes = obj_str.encode("utf-8")
+            # Encode the data
+            json_str = self.model_dump_json()
+            data = json_str.encode("utf-8")
 
             # Prepend the protocol header
-            header = Header(RequestType.LIST_USERS.value, len(obj_bytes))
-            return header.pack() + obj_bytes
+            header = Header(header_type=RequestType.LIST_USERS.value,
+                            payload_size=len(data))
+            return header.pack() + data
 
     @staticmethod
     def unpack(data: bytes):
@@ -73,31 +63,26 @@ class ListUsersRequest:
             username = username_bytes.decode("utf-8")
             pattern = pattern_bytes.decode("utf-8")
 
-            return ListUsersRequest(username, pattern)
+            return ListUsersRequest(username=username,
+                                    pattern=pattern)
         else:
-            # TODO: discard the protocol header
-            # Decode and load the JSON object
-            obj_str = data.decode("utf-8")
-            obj = json.loads(obj_str)
+            # Verify the protocol header request type
+            header = Header.unpack(data)
+            assert RequestType(header.header_type) == RequestType.LIST_USERS
+            data = data[Header.SIZE:]
 
-            return ListUsersRequest(obj["username"],
-                                    obj["pattern"])
+            # Decode the data
+            json_str = data.decode("utf-8")
+
+            return ListUsersRequest.model_validate_json(json_str)
 
 
-class ListUsersResponse:
+class ListUsersResponse(BaseModel):
     """
     List users response.
     :var usernames: The list of users matching the pattern.
     """
-
-    def __init__(self, usernames: list[str]):
-        self.usernames = usernames
-
-    def __eq__(self, other):
-        return self.usernames == other.usernames
-
-    def __str__(self):
-        return f"ListUsersResponse({self.usernames})"
+    usernames: list[str]
 
     def pack(self):
         if PROTOCOL_TYPE != "json":
@@ -105,11 +90,18 @@ class ListUsersResponse:
             data = pack_strings(self.usernames)
 
             # Prepend the protocol header
-            header = Header(ResponseType.LIST_USERS.value, len(data))
+            header = Header(header_type=ResponseType.LIST_USERS.value,
+                            payload_size=len(data))
             return header.pack() + data
         else:
-            # TODO
-            raise Exception("json not yet implemented")
+            # Encode the data
+            json_str = self.model_dump_json()
+            data = json_str.encode("utf-8")
+
+            # Prepend the protocol header
+            header = Header(header_type=ResponseType.LIST_USERS.value,
+                            payload_size=len(data))
+            return header.pack() + data
 
     @staticmethod
     def unpack(data: bytes) -> "ListUsersResponse":
@@ -122,7 +114,14 @@ class ListUsersResponse:
             # Unpack the usernames
             usernames = unpack_strings(data)
 
-            return ListUsersResponse(usernames)
+            return ListUsersResponse(usernames=usernames)
         else:
-            # TODO
-            raise Exception("json not implemented yet")
+            # Verify the protocol header response type
+            header = Header.unpack(data)
+            assert ResponseType(header.header_type) == ResponseType.LIST_USERS
+            data = data[Header.SIZE:]
+
+            # Decode the data
+            json_str = data.decode("utf-8")
+
+            return ListUsersResponse.model_validate_json(json_str)

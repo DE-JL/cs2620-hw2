@@ -1,39 +1,54 @@
-import json
+from pydantic import BaseModel
 
 from .header import Header, ResponseType
+from config import PROTOCOL_TYPE
 
 
-class ErrorResponse:
+class ErrorResponse(BaseModel):
     """
     Error response.
     :var message: The descriptive error message.
     """
-
-    def __init__(self, message: str):
-        self.message = message
-
-    def __eq__(self, other):
-        return self.message == other.message
-
-    def __str__(self):
-        return f"ErrorResponse({self.message})"
+    message: str
 
     def pack(self) -> bytes:
-        # Pack the data
-        data = self.message.encode("utf-8")
+        if PROTOCOL_TYPE != "json":
+            # Pack the data
+            data = self.message.encode("utf-8")
 
-        # Prepend the protocol header
-        header = Header(ResponseType.ERROR.value, len(data))
-        return header.pack() + data
+            # Prepend the protocol header
+            header = Header(header_type=ResponseType.ERROR.value,
+                            payload_size=len(data))
+            return header.pack() + data
+        else:
+            # Encode the data
+            json_str = self.model_dump_json()
+            data = json_str.encode("utf-8")
+
+            # Prepend the protocol header
+            header = Header(header_type=ResponseType.ERROR.value,
+                            payload_size=len(data))
+            return header.pack() + data
 
     @staticmethod
     def unpack(data: bytes) -> "ErrorResponse":
-        # Verify the protocol header response type
-        header = Header.unpack(data)
-        assert ResponseType(header.header_type) == ResponseType.ERROR
-        data = data[Header.SIZE:]
+        if PROTOCOL_TYPE != "json":
+            # Verify the protocol header response type
+            header = Header.unpack(data)
+            assert ResponseType(header.header_type) == ResponseType.ERROR
+            data = data[Header.SIZE:]
 
-        # Decode the message
-        message = data.decode("utf-8")
+            # Decode the message
+            message = data.decode("utf-8")
 
-        return ErrorResponse(message)
+            return ErrorResponse(message=message)
+        else:
+            # Verify the protocol header response type
+            header = Header.unpack(data)
+            assert ResponseType(header.header_type) == ResponseType.ERROR
+            data = data[Header.SIZE:]
+
+            # Decode the data
+            json_str = data.decode("utf-8")
+
+            return ErrorResponse.model_validate_json(json_str)

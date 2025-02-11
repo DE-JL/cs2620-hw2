@@ -12,8 +12,10 @@ from entity import *
 
 
 def test_header():
-    header1 = Header(RequestType.ECHO.value, 2620)
-    header2 = Header(RequestType.ECHO.value, 2621)
+    header1 = Header(header_type=RequestType.ECHO.value,
+                     payload_size=2620)
+    header2 = Header(header_type=RequestType.ECHO.value,
+                     payload_size=2621)
 
     assert header1 == Header.unpack(header1.pack())
     assert header2 == Header.unpack(header2.pack())
@@ -58,7 +60,7 @@ def test_user():
 
 
 def test_error():
-    resp = ErrorResponse("error")
+    resp = ErrorResponse(message="error")
     assert resp == ErrorResponse.unpack(resp.pack())
 
     print("pack_unpack::test_error ---- PASSED")
@@ -66,16 +68,16 @@ def test_error():
 
 def test_echo():
     # Request
-    req1 = EchoRequest("hello world")
-    req2 = EchoRequest("hello world!")
+    req1 = EchoRequest(string="hello world")
+    req2 = EchoRequest(string="hello world!")
 
     assert req1 == EchoRequest.unpack(req1.pack())
     assert req2 == EchoRequest.unpack(req2.pack())
     assert req1 != req2
 
     # Response
-    resp1 = EchoResponse("hello world")
-    resp2 = EchoResponse("hello world!")
+    resp1 = EchoResponse(string="hello world")
+    resp2 = EchoResponse(string="hello world!")
 
     assert resp1 == EchoResponse.unpack(resp1.pack())
     assert resp2 == EchoResponse.unpack(resp2.pack())
@@ -86,12 +88,12 @@ def test_echo():
 
 def test_auth():
     # Request
-    req1 = AuthRequest(AuthRequest.ActionType.CREATE_ACCOUNT,
-                       "user1",
-                       "password")
-    req2 = AuthRequest(AuthRequest.ActionType.LOGIN,
-                       "user1",
-                       "password")
+    req1 = AuthRequest(action_type=AuthRequest.ActionType.CREATE_ACCOUNT,
+                       username="user1",
+                       password="password")
+    req2 = AuthRequest(action_type=AuthRequest.ActionType.LOGIN,
+                       username="user1",
+                       password="password")
 
     assert req1 == AuthRequest.unpack(req1.pack())
     assert req2 == AuthRequest.unpack(req2.pack())
@@ -106,8 +108,8 @@ def test_auth():
 
 def test_get_messages():
     # Request
-    req1 = GetMessagesRequest("user1")
-    req2 = GetMessagesRequest("user2")
+    req1 = GetMessagesRequest(username="user1")
+    req2 = GetMessagesRequest(username="user2")
 
     assert req1 == GetMessagesRequest.unpack(req1.pack())
     assert req2 == GetMessagesRequest.unpack(req2.pack())
@@ -123,8 +125,8 @@ def test_get_messages():
     message3 = Message(sender="user1",
                        receiver="user2",
                        body="hello")
-    resp1 = GetMessagesResponse([message1, message2])
-    resp2 = GetMessagesResponse([message1, message3])
+    resp1 = GetMessagesResponse(messages=[message1, message2])
+    resp2 = GetMessagesResponse(messages=[message1, message3])
 
     assert resp1 == GetMessagesResponse.unpack(resp1.pack())
     assert resp2 == GetMessagesResponse.unpack(resp2.pack())
@@ -135,16 +137,16 @@ def test_get_messages():
 
 def test_list_users():
     # Request
-    req1 = ListUsersRequest("user1", "*")
-    req2 = ListUsersRequest("user1", "*+")
+    req1 = ListUsersRequest(username="user1", pattern="*")
+    req2 = ListUsersRequest(username="user1", pattern="*+")
 
     assert req1 == ListUsersRequest.unpack(req1.pack())
     assert req2 == ListUsersRequest.unpack(req2.pack())
     assert req1 != req2
 
     # Response
-    resp1 = ListUsersResponse(["user1", "user2"])
-    resp2 = ListUsersResponse(["user1", "user3"])
+    resp1 = ListUsersResponse(usernames=["user1", "user2"])
+    resp2 = ListUsersResponse(usernames=["user1", "user3"])
 
     assert resp1 == ListUsersResponse.unpack(resp1.pack())
     assert resp2 == ListUsersResponse.unpack(resp2.pack())
@@ -155,19 +157,19 @@ def test_list_users():
 
 def test_send_message():
     # Request
-    req1 = SendMessageRequest("user1",
-                              Message(sender="user1",
-                                      receiver="user2",
-                                      body="hello world",
-                                      id=uuid.UUID(int=0),
-                                      ts=0))
+    req1 = SendMessageRequest(username="user1",
+                              message=Message(sender="user1",
+                                              receiver="user2",
+                                              body="hello world",
+                                              id=uuid.UUID(int=0),
+                                              ts=0))
 
-    req2 = SendMessageRequest("user1",
-                              Message(sender="user1",
-                                      receiver="user2",
-                                      body="hello world",
-                                      id=uuid.UUID(int=0),
-                                      ts=1))
+    req2 = SendMessageRequest(username="user1",
+                              message=Message(sender="user1",
+                                              receiver="user2",
+                                              body="hello world",
+                                              id=uuid.UUID(int=0),
+                                              ts=1))
 
     assert req1 == SendMessageRequest.unpack(req1.pack())
     assert req2 == SendMessageRequest.unpack(req2.pack())
@@ -185,8 +187,8 @@ def test_read_messages():
     ids1 = [uuid.UUID(int=i) for i in range(3)]
     ids2 = [uuid.UUID(int=i) for i in range(4)]
 
-    req1 = ReadMessagesRequest("user1", ids1)
-    req2 = ReadMessagesRequest("user1", ids2)
+    req1 = ReadMessagesRequest(username="user1", message_ids=ids1)
+    req2 = ReadMessagesRequest(username="user1", message_ids=ids2)
 
     assert req1 == ReadMessagesRequest.unpack(req1.pack())
     assert req2 == ReadMessagesRequest.unpack(req2.pack())
@@ -204,8 +206,8 @@ def test_delete_messages():
     ids1 = [uuid.UUID(int=i) for i in range(3)]
     ids2 = [uuid.UUID(int=i) for i in range(4)]
 
-    req1 = DeleteMessagesRequest("user1", ids1)
-    req2 = DeleteMessagesRequest("user1", ids2)
+    req1 = DeleteMessagesRequest(username="user1", message_ids=ids1)
+    req2 = DeleteMessagesRequest(username="user1", message_ids=ids2)
 
     assert req1 == DeleteMessagesRequest.unpack(req1.pack())
     assert req2 == DeleteMessagesRequest.unpack(req2.pack())
@@ -220,8 +222,8 @@ def test_delete_messages():
 
 def test_delete_user():
     # Request
-    req1 = DeleteUserRequest("user1")
-    req2 = DeleteUserRequest("user2")
+    req1 = DeleteUserRequest(username="user1")
+    req2 = DeleteUserRequest(username="user2")
 
     assert req1 == DeleteUserRequest.unpack(req1.pack())
     assert req2 == DeleteUserRequest.unpack(req2.pack())

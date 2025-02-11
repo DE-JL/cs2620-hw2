@@ -1,73 +1,104 @@
+from pydantic import BaseModel
+
+from config import PROTOCOL_TYPE
 from entity import *
 
 
-class EchoRequest:
+class EchoRequest(BaseModel):
     """
     Echo request.
     :var string: The echo request string.
     """
-
-    def __init__(self, string: str):
-        self.string = string
-
-    def __eq__(self, other):
-        return self.string == other.string
-
-    def __str__(self):
-        return f"EchoRequest({self.string})"
+    string: str
 
     def pack(self) -> bytes:
-        # Encode the data
-        data = self.string.encode("utf-8")
+        if PROTOCOL_TYPE != "json":
+            # Encode the data
+            data = self.string.encode("utf-8")
 
-        # Prepend the protocol header
-        header = Header(RequestType.ECHO.value, len(data))
-        return header.pack() + data
+            # Prepend the protocol header
+            header = Header(header_type=RequestType.ECHO.value,
+                            payload_size=len(data))
+            return header.pack() + data
+        else:
+            # Encode the data
+            json_str = self.model_dump_json()
+            data = json_str.encode("utf-8")
+
+            # Prepend the protocol header
+            header = Header(header_type=RequestType.ECHO.value,
+                            payload_size=len(data))
+            return header.pack() + data
 
     @staticmethod
     def unpack(data: bytes) -> "EchoRequest":
-        # Verify the protocol header request type
-        header = Header.unpack(data)
-        assert RequestType(header.header_type) == RequestType.ECHO
-        data = data[Header.SIZE:]
+        if PROTOCOL_TYPE != "json":
+            # Verify the protocol header request type
+            header = Header.unpack(data)
+            assert RequestType(header.header_type) == RequestType.ECHO
+            data = data[Header.SIZE:]
 
-        # Decode the data
-        string = data.decode("utf-8")
+            # Decode the data
+            string = data.decode("utf-8")
 
-        return EchoRequest(string)
+            return EchoRequest(string=string)
+        else:
+            # Verify the protocol header request type
+            header = Header.unpack(data)
+            assert RequestType(header.header_type) == RequestType.ECHO
+            data = data[Header.SIZE:]
+
+            # Decode the data
+            json_str = data.decode("utf-8")
+
+            return EchoRequest.model_validate_json(json_str)
 
 
-class EchoResponse:
+class EchoResponse(BaseModel):
     """
     Echo response.
     :var string: The echo response string.
     """
-
-    def __init__(self, string: str):
-        self.string = string
-
-    def __eq__(self, other):
-        return self.string == other.string
-
-    def __str__(self):
-        return f"EchoRequest({self.string})"
+    string: str
 
     def pack(self) -> bytes:
-        # Encode the data
-        data = self.string.encode("utf-8")
+        if PROTOCOL_TYPE != "json":
+            # Encode the data
+            data = self.string.encode("utf-8")
 
-        # Prepend the protocol header
-        header = Header(ResponseType.ECHO.value, len(data))
-        return header.pack() + data
+            # Prepend the protocol header
+            header = Header(header_type=ResponseType.ECHO.value,
+                            payload_size=len(data))
+            return header.pack() + data
+        else:
+            # Encode the data
+            json_str = self.model_dump_json()
+            data = json_str.encode("utf-8")
+
+            # Prepend the protocol header
+            header = Header(header_type=ResponseType.ECHO.value,
+                            payload_size=len(data))
+            return header.pack() + data
 
     @staticmethod
-    def unpack(data: bytes) -> "EchoRequest":
-        # Verify the protocol header request type
-        header = Header.unpack(data)
-        assert ResponseType(header.header_type) == ResponseType.ECHO
-        data = data[Header.SIZE:]
+    def unpack(data: bytes) -> "EchoResponse":
+        if PROTOCOL_TYPE != "json":
+            # Verify the protocol header request type
+            header = Header.unpack(data)
+            assert ResponseType(header.header_type) == ResponseType.ECHO
+            data = data[Header.SIZE:]
 
-        # Decode the data
-        string = data.decode("utf-8")
+            # Decode the data
+            string = data.decode("utf-8")
 
-        return EchoRequest(string)
+            return EchoResponse(string=string)
+        else:
+            # Verify the protocol header request type
+            header = Header.unpack(data)
+            assert ResponseType(header.header_type) == ResponseType.ECHO
+            data = data[Header.SIZE:]
+
+            # Decode the data
+            json_str = data.decode("utf-8")
+
+            return EchoResponse.model_validate_json(json_str)

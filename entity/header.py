@@ -1,5 +1,8 @@
-from enum import Enum
 import struct
+
+from enum import Enum
+from pydantic import BaseModel, Field
+from typing import ClassVar
 
 from config import PROTOCOL_TYPE
 
@@ -33,7 +36,7 @@ class DataType(Enum):
     LIST = 2
 
 
-class Header:
+class Header(BaseModel):
     """
     Header for wire protocol.
     :cvar FORMAT: Predefined protocol header format.
@@ -42,32 +45,17 @@ class Header:
     :var payload_size: The size of the following data payload in bytes.
     """
 
-    FORMAT = "!B I"
-    SIZE = struct.calcsize(FORMAT)
+    FORMAT: ClassVar[str] = "!B I"
+    SIZE: ClassVar[int] = struct.calcsize(FORMAT)
 
-    def __init__(self, header_type: int, payload_size=0):
-        self.header_type = header_type
-        self.payload_size = payload_size
-
-    def __eq__(self, other):
-        return (self.header_type == other.header_type and
-                self.payload_size == other.payload_size)
-
-    def __str__(self):
-        return f"Header({self.header_type}, {self.payload_size})"
+    header_type: int
+    payload_size: int = Field(default=0)
 
     def pack(self) -> bytes:
-        if PROTOCOL_TYPE != "json":
-            return struct.pack(self.FORMAT, self.header_type, self.payload_size)
-        else:
-            # TODO
-            raise Exception("json not implemented yet")
+        return struct.pack(self.FORMAT, self.header_type, self.payload_size)
 
     @staticmethod
     def unpack(data: bytes) -> "Header":
-        if PROTOCOL_TYPE != "json":
-            header_type, payload_size = struct.unpack_from(Header.FORMAT, data)
-            return Header(header_type, payload_size)
-        else:
-            # TODO
-            raise Exception("json not implemented yet")
+        header_type, payload_size = struct.unpack_from(Header.FORMAT, data)
+        return Header(header_type=header_type,
+                      payload_size=payload_size)

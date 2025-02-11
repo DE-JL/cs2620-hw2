@@ -1,27 +1,18 @@
-import json
 import struct
+
+from pydantic import BaseModel
 
 from config import PROTOCOL_TYPE
 from entity import *
 
 
-class SendMessageRequest:
+class SendMessageRequest(BaseModel):
     """
     Send message request.
     :var message: Message object.
     """
-
-    def __init__(self, username: str, message: Message):
-        assert username == message.sender
-        self.username = username
-        self.message = message
-
-    def __eq__(self, other):
-        return (self.username == other.username and
-                self.message == other.message)
-
-    def __str__(self):
-        return f"SendMessageRequest({self.message})"
+    username: str
+    message: Message
 
     def pack(self):
         if PROTOCOL_TYPE != "json":
@@ -34,11 +25,18 @@ class SendMessageRequest:
             data += self.message.pack()
 
             # Prepend the protocol header
-            header = Header(RequestType.SEND_MESSAGE.value, len(data))
+            header = Header(header_type=RequestType.SEND_MESSAGE.value,
+                            payload_size=len(data))
             return header.pack() + data
         else:
-            # TODO
-            raise Exception("json not implemented yet")
+            # Encode the data
+            json_str = self.model_dump_json()
+            data = json_str.encode("utf-8")
+
+            # Prepend the protocol header
+            header = Header(header_type=RequestType.SEND_MESSAGE.value,
+                            payload_size=len(data))
+            return header.pack() + data
 
     @staticmethod
     def unpack(data: bytes):
@@ -62,42 +60,33 @@ class SendMessageRequest:
             # Unpack the message
             message = Message.unpack(data)
 
-            return SendMessageRequest(username, message)
+            return SendMessageRequest(username=username,
+                                      message=message)
         else:
-            # TODO
-            raise Exception("json not implemented yet")
+            # Verify the protocol header request type
+            header = Header.unpack(data)
+            assert RequestType(header.header_type) == RequestType.SEND_MESSAGE
+            data = data[Header.SIZE:]
+
+            # Decode the data
+            json_str = data.decode("utf-8")
+
+            return SendMessageRequest.model_validate_json(json_str)
 
 
-class SendMessageResponse:
+class SendMessageResponse(BaseModel):
     """
     Send message response.
     """
 
-    def __init__(self):
-        return
-
-    def __eq__(self, other):
-        return isinstance(other, SendMessageResponse)
-
-    def __str__(self):
-        return "SendMessageResponse()"
-
     @staticmethod
     def pack() -> bytes:
-        if PROTOCOL_TYPE != "json":
-            return Header(ResponseType.SEND_MESSAGE.value).pack()
-        else:
-            # TODO
-            raise Exception("json not implemented yet")
+        return Header(header_type=ResponseType.SEND_MESSAGE.value).pack()
 
     @staticmethod
     def unpack(data: bytes) -> "SendMessageResponse":
-        if PROTOCOL_TYPE != "json":
-            # Verify the protocol header response type
-            header = Header.unpack(data)
-            assert ResponseType(header.header_type) == ResponseType.SEND_MESSAGE
+        # Verify the protocol header response type
+        header = Header.unpack(data)
+        assert ResponseType(header.header_type) == ResponseType.SEND_MESSAGE
 
-            return SendMessageResponse()
-        else:
-            # TODO
-            raise Exception("json not implemented yet")
+        return SendMessageResponse()

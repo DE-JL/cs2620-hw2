@@ -1,12 +1,13 @@
-from enum import Enum
-import json
 import struct
+
+from enum import Enum
+from pydantic import BaseModel, Field
 
 from config import PROTOCOL_TYPE
 from entity import *
 
 
-class AuthRequest:
+class AuthRequest(BaseModel):
     """
     Authenticate request.
     :type Auth.ActionType: An enum for the types of possible authentication actions.
@@ -19,18 +20,9 @@ class AuthRequest:
         CREATE_ACCOUNT = 0
         LOGIN = 1
 
-    def __init__(self, action_type: ActionType, username: str, password: str):
-        self.action_type = action_type
-        self.username = username
-        self.password = password
-
-    def __str__(self):
-        return f"AuthRequest({self.action_type}, {self.username}, {self.password})"
-
-    def __eq__(self, other):
-        return (self.action_type == other.action_type and
-                self.username == other.username and
-                self.password == other.password)
+    action_type: ActionType
+    username: str
+    password: str
 
     def pack(self):
         if PROTOCOL_TYPE != "json":
@@ -46,22 +38,18 @@ class AuthRequest:
                                username_bytes, password_bytes)
 
             # Prepend the protocol header
-            header = Header(RequestType.AUTHENTICATE.value, len(data))
+            header = Header(header_type=RequestType.AUTHENTICATE.value,
+                            payload_size=len(data))
             return header.pack() + data
         else:
-            # TODO: discard protocol header
-            # Encode the JSON object
-            obj = {
-                "action_type": self.action_type.value,
-                "username": self.username,
-                "password": self.password
-            }
-            obj_str = json.dumps(obj)
-            obj_bytes = obj_str.encode("utf-8")
+            # Encode the data
+            json_str = self.model_dump_json()
+            data = json_str.encode("utf-8")
 
             # Prepend the protocol header
-            header = Header(RequestType.AUTHENTICATE.value, len(obj_bytes))
-            return header.pack() + obj_bytes
+            header = Header(header_type=RequestType.AUTHENTICATE.value,
+                            payload_size=len(data))
+            return header.pack() + data
 
     @staticmethod
     def unpack(data: bytes):
@@ -84,50 +72,34 @@ class AuthRequest:
             username = username_bytes.decode("utf-8")
             password = password_bytes.decode("utf-8")
 
-            return AuthRequest(AuthRequest.ActionType(action_type_value),
-                               username,
-                               password)
+            return AuthRequest(action_type=AuthRequest.ActionType(action_type_value),
+                               username=username,
+                               password=password)
         else:
-            # TODO: discard protocol header
-            # Decode and load the JSON object
-            obj_str = data.decode("utf-8")
-            obj = json.loads(obj_str)
+            # Verify the protocol header request type
+            header = Header.unpack(data)
+            assert RequestType(header.header_type) == RequestType.AUTHENTICATE
+            data = data[Header.SIZE:]
 
-            return AuthRequest(AuthRequest.ActionType(obj["action_type"]),
-                               obj["username"],
-                               obj["password"])
+            # Decode the data
+            json_str = data.decode("utf-8")
+
+            return AuthRequest.model_validate_json(json_str)
 
 
-class AuthResponse:
+class AuthResponse(BaseModel):
     """
     Authenticate response.
     """
 
-    def __init__(self):
-        return
-
-    def __eq__(self, other):
-        return isinstance(other, AuthResponse)
-
-    def __str__(self):
-        return "AuthResponse()"
-
     @staticmethod
     def pack() -> bytes:
-        if PROTOCOL_TYPE != "json":
-            return Header(ResponseType.AUTHENTICATE.value).pack()
-        else:
-            # TODO
-            raise Exception("json not implemented yet")
+        return Header(header_type=ResponseType.AUTHENTICATE.value).pack()
 
     @staticmethod
     def unpack(data: bytes) -> "AuthResponse":
-        if PROTOCOL_TYPE != "json":
-            # Verify the protocol header response type
-            header = Header.unpack(data)
-            assert ResponseType(header.header_type) == ResponseType.AUTHENTICATE
+        # Verify the protocol header response type
+        header = Header.unpack(data)
+        assert ResponseType(header.header_type) == ResponseType.AUTHENTICATE
 
-            return AuthResponse()
-        else:
-            # TODO
-            raise Exception("json not implemented yet")
+        return AuthResponse()

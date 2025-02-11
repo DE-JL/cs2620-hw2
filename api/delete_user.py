@@ -1,24 +1,17 @@
-import json
 import struct
+
+from pydantic import BaseModel
 
 from config import PROTOCOL_TYPE
 from entity import *
 
 
-class DeleteUserRequest:
+class DeleteUserRequest(BaseModel):
     """
     Delete user request.
     :var username: The username of the user to delete.
     """
-
-    def __init__(self, username: str):
-        self.username = username
-
-    def __eq__(self, other):
-        return self.username == other.username
-
-    def __str__(self):
-        return f"DeleteUserRequest({self.username})"
+    username: str
 
     def pack(self) -> bytes:
         if PROTOCOL_TYPE != "json":
@@ -30,15 +23,23 @@ class DeleteUserRequest:
             data = struct.pack(pack_format, len(username_bytes), username_bytes)
 
             # Prepend the protocol header
-            header = Header(RequestType.DELETE_USER.value, len(data))
+            header = Header(header_type=RequestType.DELETE_USER.value,
+                            payload_size=len(data))
             return header.pack() + data
         else:
-            # TODO
-            raise Exception("json not implemented yet")
+            # Encode the data
+            json_str = self.model_dump_json()
+            data = json_str.encode("utf-8")
+
+            # Prepend the protocol header
+            header = Header(header_type=RequestType.DELETE_USER.value,
+                            payload_size=len(data))
+            return header.pack() + data
 
     @staticmethod
     def unpack(data: bytes) -> "DeleteUserRequest":
         if PROTOCOL_TYPE != "json":
+            # Verify the protocol header request type
             header = Header.unpack(data)
             assert RequestType(header.header_type) == RequestType.DELETE_USER
             data = data[Header.SIZE:]
@@ -55,42 +56,32 @@ class DeleteUserRequest:
             # Decode the data
             username = username_bytes.decode("utf-8")
 
-            return DeleteUserRequest(username)
+            return DeleteUserRequest(username=username)
         else:
-            # TODO
-            raise Exception("json not implemented yet")
+            # Verify the protocol header request type
+            header = Header.unpack(data)
+            assert RequestType(header.header_type) == RequestType.DELETE_USER
+            data = data[Header.SIZE:]
+
+            # Decode the data
+            json_str = data.decode("utf-8")
+
+            return DeleteUserRequest.model_validate_json(json_str)
 
 
-class DeleteUserResponse:
+class DeleteUserResponse(BaseModel):
     """
     Delete user response.
     """
 
-    def __init__(self):
-        return
-
-    def __eq__(self, other):
-        return isinstance(other, DeleteUserResponse)
-
-    def __str__(self):
-        return "DeleteUserResponse()"
-
     @staticmethod
     def pack() -> bytes:
-        if PROTOCOL_TYPE != "json":
-            return Header(ResponseType.DELETE_USER.value).pack()
-        else:
-            # TODO
-            raise Exception("json not implemented yet")
+        return Header(header_type=ResponseType.DELETE_USER.value).pack()
 
     @staticmethod
     def unpack(data: bytes) -> "DeleteUserResponse":
-        if PROTOCOL_TYPE != "json":
-            # Verify the protocol header response type
-            header = Header.unpack(data)
-            assert ResponseType(header.header_type) == ResponseType.DELETE_USER
+        # Verify the protocol header response type
+        header = Header.unpack(data)
+        assert ResponseType(header.header_type) == ResponseType.DELETE_USER
 
-            return DeleteUserResponse()
-        else:
-            # TODO
-            raise Exception("json not implemented yet")
+        return DeleteUserResponse()
