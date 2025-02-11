@@ -1,21 +1,21 @@
 import socket
 
 from api import *
-from config import HOST, PORT
+from config import LOCALHOST, SERVER_PORT
 from entity import *
 
 
 def main():
     # Connect to the server
     client_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-    client_socket.connect((HOST, PORT))
-    print(f"Client connected to {HOST}:{PORT}")
+    client_socket.connect((LOCALHOST, SERVER_PORT))
+    print(f"Client connected to {LOCALHOST}:{SERVER_PORT}")
 
     while True:
         s = input("> ")
 
         # Send the echo request
-        req = EchoRequest(s)
+        req = EchoRequest(string=s)
         client_socket.send(req.pack())
 
         # Receive the header

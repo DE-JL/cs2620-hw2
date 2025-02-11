@@ -5,9 +5,9 @@ import types
 import uuid
 
 from api import *
-from config import HOST, PORT, DEBUG
+from config import DEBUG, LOCALHOST, PUBLIC_STATUS, SERVER_PORT
 from entity import *
-from utils import parse_request
+from utils import get_ipaddr, parse_request
 
 
 class Server:
@@ -22,7 +22,7 @@ class Server:
         self.server_socket.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
         self.server_socket.setblocking(False)
 
-    def run(self, host, port):
+    def run(self, host: str, port: int):
         # Bind and listen on <host:port>
         self.server_socket.bind((host, port))
         self.server_socket.listen()
@@ -285,10 +285,18 @@ class Server:
 def main():
     """
     Entry point for server application.
-    :return: Nothing on success.
     """
+
+    if not PUBLIC_STATUS:
+        host = LOCALHOST
+    else:
+        host = get_ipaddr()
+        if host is None:
+            print("Error: server IP address could not be found.")
+            exit(1)
+
     server = Server()
-    server.run(HOST, PORT)
+    server.run(host, SERVER_PORT)
 
 
 if __name__ == '__main__':

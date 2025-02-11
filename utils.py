@@ -2,19 +2,21 @@ import netifaces
 import socket
 
 from api import *
+from config import NETWORK_INTERFACE
 from entity import Header, RequestType
 
 
 def get_ipaddr():
     try:
-        addrs = netifaces.ifaddresses("en0")
+        addrs = netifaces.ifaddresses(NETWORK_INTERFACE)
 
         # netifaces.AF_INET is the IPv4 family
         if netifaces.AF_INET in addrs:
-            # Each entry looks like {'addr': '10.250.49.49', 'netmask': '255.255.0.0', 'broadcast': '10.250.255.255'}
+            # Each entry looks like {'addr': '10.X.X.X', 'netmask': '255.255.0.0', 'broadcast': '10.250.255.255'}
             return addrs[netifaces.AF_INET][0]['addr']
+
     except ValueError:
-        # 'en0' might not exist on this machine
+        # NETWORK_INTERFACE might not exist on this machine
         return None
 
 
