@@ -7,7 +7,7 @@ import socket
 import uuid
 
 from api import *
-from config import HOST, PORT
+from config import LOCALHOST, SERVER_PORT
 from entity import *
 
 
@@ -367,8 +367,8 @@ def test_delete_user(sock: socket.socket):
 if __name__ == '__main__':
     # Connect to the server
     client_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-    client_socket.connect((HOST, PORT))
-    print(f"Client connected to {HOST}:{PORT}")
+    client_socket.connect((LOCALHOST, SERVER_PORT))
+    print(f"Client connected to {LOCALHOST}:{SERVER_PORT}")
 
     # Run tests (the order matters!)
     test_auth(client_socket)
