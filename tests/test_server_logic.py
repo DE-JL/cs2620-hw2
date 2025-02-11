@@ -1,14 +1,53 @@
-"""
-This test file primarily tests the pack() and unpack() methods for our entity and request/response classes.
-It also tests for equality checking.
-"""
-
 import socket
 import uuid
+import pytest
+import time
+import subprocess
 
 from api import *
 from config import LOCALHOST, SERVER_PORT
 from entity import *
+
+
+@pytest.fixture(scope="session", autouse=True)
+def start_server():
+    """Start the server before tests and ensure it shuts down after."""
+    print("\nStarting server...")
+    
+    # Start the server process
+    server_process = subprocess.Popen(["python", "server.py"], stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+    
+    # Wait for server to be ready (adjust timeout if necessary)
+    timeout = 5
+    start_time = time.time()
+    while time.time() - start_time < timeout:
+        try:
+            # Try connecting to see if server is up
+            sock = socket.create_connection((HOST, PORT), timeout=1)
+            sock.close()
+            print("Server is ready!")
+            break
+        except (ConnectionRefusedError, OSError):
+            time.sleep(0.5)
+    else:
+        server_process.kill()
+        pytest.exit("Server failed to start within timeout.")
+
+    yield  # Tests run after this
+
+    print("\nStopping server...")
+    server_process.terminate()
+    server_process.wait()  # Ensure process exits
+    print("Server stopped.")
+
+
+@pytest.fixture(scope="session")
+def sock():
+    """Fixture to create and close a socket connection before and after each test."""
+    client_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+    client_socket.connect((HOST, PORT))
+    yield client_socket  # This is what gets passed into test functions
+    client_socket.close()  # Cleanup after each test
 
 
 def recv_resp_bytes(sock: socket.socket) -> bytes:
