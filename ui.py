@@ -235,11 +235,17 @@ class UserSession:
         api.DeleteMessagesResponse.unpack(recvd)
 
     def read_messages_event(self):
-        num_to_read = int(self.main_frame.view_messages.num_read_entry.text())
+        try:
+            num_to_read = int(self.main_frame.view_messages.num_read_entry.text())
+        except ValueError:
+            QMessageBox.critical(self.window, 'Error', "Please enter a valid number of messages to read")
+            return
 
         ids = [message.id for message in self.messages if not message.read]
 
         num_to_read = min(num_to_read, len(self.messages))
+
+        print("Number of messages to read:", num_to_read)
 
         if num_to_read == 0:
             QMessageBox.critical(self.window, 'Error', "No messages to read")
@@ -534,7 +540,7 @@ class ViewMessage(QWidget):
         # TODO add validation to input here
         self.unread_count_label = QLabel("Unread Messages")
         self.num_read_label = QLabel("Number of Messages to Read: ")
-        self.num_read_entry = QLineEdit()
+        self.num_read_entry = QLineEdit("1")
         self.num_read_entry.setValidator(NoLeadingZeroValidator(1, 100))
         self.read_button = QPushButton("Read Messages")
 
