@@ -21,6 +21,7 @@ from entity import Message, ResponseType, Header, ErrorResponse
 from utils import recv_resp_bytes
 
 import api
+import ui
 
 import hashlib
 
@@ -76,6 +77,10 @@ class UserSession:
         # TODO Add event handler for delete message
         self.main_frame.view_messages.delete_button.clicked.connect(self.delete_messages_event)
 
+    def close(self):
+        if not self.debug:
+            self.sock.close()
+    
     def authenticate_user(self, action):
         print("Authenticating user...")
         username = self.main_frame.login.user_entry.text()
@@ -384,251 +389,6 @@ class MessageUpdaterWorker(QObject):
         """
         self._running = False
 
-
-class Login(QWidget):
-
-    def __init__(self):
-        super().__init__()
-
-        self.user_label = QLabel("User: ")
-        self.user_label.setAlignment(Qt.AlignRight | Qt.AlignVCenter)
-        self.user_label.setAutoFillBackground(True)
-
-        self.password_label = QLabel("Password: ")
-        self.password_label.setAlignment(Qt.AlignRight | Qt.AlignVCenter)
-        self.password_label.setAutoFillBackground(True)
-
-        self.user_entry = QLineEdit()
-        self.password_entry = QLineEdit()
-        self.password_entry.setEchoMode(QLineEdit.Password)
-
-        self.login_button = QPushButton("Login")
-
-        self.sign_up_button = QPushButton("Sign Up")
-
-        self.entry_layout = QGridLayout()
-        self.entry_layout.addWidget(self.user_label, 0, 0)
-        self.entry_layout.addWidget(self.user_entry, 0, 1)
-        self.entry_layout.addWidget(self.password_label, 1, 0)
-        self.entry_layout.addWidget(self.password_entry, 1, 1)
-        self.entry_layout.addWidget(self.login_button, 2, 0)
-        self.entry_layout.addWidget(self.sign_up_button, 2, 1)
-
-        self.setLayout(self.entry_layout)
-
-
-class LoggedIn(QWidget):
-    def __init__(self):
-        super().__init__()
-        self.logged_in_layout = QHBoxLayout()
-        self.user_label = QLabel("Logged in as: ")
-        self.delete_account_button = QPushButton("Delete Account")
-        self.sign_out_button = QPushButton("Sign Out")
-
-        self.logged_in_layout.addWidget(self.user_label)
-        self.logged_in_layout.addWidget(self.delete_account_button)
-        self.logged_in_layout.addWidget(self.sign_out_button)
-
-        self.setLayout(self.logged_in_layout)
-
-    def update_user_label(self, username):
-        self.user_label.setText(f"Logged in as: {username}")
-
-
-class SendMessage(QWidget):
-    def __init__(self):
-        super().__init__()
-        self.frame_layout = QGridLayout()
-        self.frame_layout.setSpacing(0)
-        self.frame_layout.setContentsMargins(0, 0, 0, 0)
-
-        self.frame_label = QLabel("Send Message")
-
-        self.recipient_label = QLabel("Recipient: ")
-        self.recipient_entry = QLineEdit()
-
-        self.message_label = QLabel("Message: ")
-        self.message_text = QTextEdit()
-
-        self.send_button = QPushButton("Send")
-
-        self.frame_layout.addWidget(self.frame_label, 0, 0, 1, 2)
-        self.frame_layout.addWidget(self.recipient_label, 1, 0)
-        self.frame_layout.addWidget(self.recipient_entry, 1, 1)
-        self.frame_layout.addWidget(self.message_label, 2, 0)
-        self.frame_layout.addWidget(self.message_text, 2, 1)
-        self.frame_layout.addWidget(self.send_button, 3, 0, 1, 2)
-
-        self.setLayout(self.frame_layout)
-
-
-class ListAccount(QWidget):
-    def __init__(self):
-        super().__init__()
-        self.frame_layout = QVBoxLayout()
-        self.frame_layout.setSpacing(0)
-        self.frame_layout.setContentsMargins(0, 0, 0, 0)
-
-        self.frame_label = QLabel("Search Accounts")
-        self.entry_label = QLabel("Search: ")
-        self.search_entry = QLineEdit()
-        self.search_button = QPushButton("Search")
-        self.account_list = QListWidget()
-        self.account_list.setSelectionMode(QAbstractItemView.MultiSelection)
-
-        self.frame_layout.addWidget(self.frame_label)
-
-        self.entry_box = QHBoxLayout()
-        self.entry_box.addWidget(self.entry_label)
-        self.entry_box.addWidget(self.search_entry)
-        self.entry_box.addWidget(self.search_button)
-
-        self.frame_layout.addLayout(self.entry_box)
-        self.frame_layout.addWidget(self.account_list)
-
-        self.frame = QFrame()
-        self.setLayout(self.frame_layout)
-
-
-class Central(QWidget):
-    def __init__(self, send_message, list_account):
-        super().__init__()
-        self.send_message = send_message
-        self.list_account = list_account
-
-        self.frame_layout = QHBoxLayout()
-
-        self.frame_layout.addWidget(self.send_message)
-        self.frame_layout.addWidget(self.list_account)
-
-        self.frame = QFrame()
-        self.setLayout(self.frame_layout)
-
-
-class NoLeadingZeroValidator(QIntValidator):
-    def validate(self, input_str, pos):
-        # Allow empty input (to support deletion)
-        if input_str == "":
-            return QValidator.Intermediate, input_str, pos
-
-        # Prevent leading zeros unless the number is just "0"
-        if input_str.startswith("0") and len(input_str) > 1:
-            return QValidator.Invalid, input_str, pos
-
-            # Check if input is a valid integer
-        try:
-            num = int(input_str)
-        except ValueError:
-            return QValidator.Invalid, input_str, pos
-
-        # Ensure it's within the valid range
-        if self.bottom() <= num <= self.top():
-            return QValidator.Acceptable, input_str, pos
-        else:
-            return QValidator.Invalid, input_str, pos
-
-
-class ViewMessage(QWidget):
-    def __init__(self):
-        super().__init__()
-        self.frame_layout = QHBoxLayout()
-        self.frame_layout.setSpacing(0)
-        self.frame_layout.setContentsMargins(0, 0, 0, 0)
-
-        self.frame_label = QLabel("View Messages")
-
-        # TODO add validation to input here
-        self.unread_count_label = QLabel("Unread Messages")
-        self.num_read_label = QLabel("Number of Messages to Read: ")
-        self.num_read_entry = QLineEdit("1")
-        self.num_read_entry.setValidator(NoLeadingZeroValidator(1, 100))
-        self.read_button = QPushButton("Read Messages")
-
-        self.unread_box = QVBoxLayout()
-        self.unread_box.addWidget(self.frame_label)
-        self.unread_box.addWidget(self.unread_count_label)
-        self.unread_box.addWidget(self.num_read_label)
-        self.unread_box.addWidget(self.num_read_entry)
-        self.unread_box.addWidget(self.read_button)
-
-        self.delete_button = QPushButton("Delete Selected")
-        self.unread_box.addWidget(self.delete_button)
-
-        self.message_list = QListWidget()
-        self.message_list.setSelectionMode(QAbstractItemView.MultiSelection)
-        self.message_list.setFont(QFont("Courier", 10))
-
-        self.frame_layout.addLayout(self.unread_box)
-        self.frame_layout.addWidget(self.message_list)
-
-        self.setLayout(self.frame_layout)
-
-    def update_message_list(self, messages):
-        selected_ids = set()
-        for item in self.message_list.selectedItems():
-            msg = item.data(Qt.UserRole)
-            selected_ids.add(msg.id)
-
-        # print(f"Selected IDs pre-refresh: {selected_ids}")
-
-        num_unread = 0
-
-        self.message_list.blockSignals(True)
-
-        self.message_list.clear()
-        for message in messages:
-            if not message.read:
-                num_unread += 1
-                continue
-
-            # Convert timestamp to a readable string
-            time_str = datetime.fromtimestamp(message.ts).strftime('%Y-%m-%d %H:%M:%S')
-
-            # Create a display string
-            display_text = f"[{time_str}] {message.sender}: {message.body}"
-
-            # Create a list item
-            item = QListWidgetItem(display_text)
-
-            # Store the entire Message object in user data
-            item.setData(Qt.UserRole, message)
-
-            self.message_list.addItem(item)
-
-            # Make sure previously selected items are selected
-            if message.id in selected_ids:
-                # print(f"Selected ID found: {message.id}")
-                item.setSelected(True)
-
-        self.message_list.blockSignals(False)
-        self.message_list.repaint()  # Force a refresh only once
-
-        self.unread_count_label.setText(f"Unread Messages: {num_unread}")
-
-
-class MainFrame(QFrame):
-    def __init__(self, login, logged_in, central, view_messages):
-        super().__init__()
-
-        self.login = login
-        self.logged_in = logged_in
-        self.central = central
-        self.view_messages = view_messages
-
-        # Set up the frame layout
-        main_frame_layout = QVBoxLayout()
-        main_frame_layout.setSpacing(0)
-        main_frame_layout.setContentsMargins(0, 0, 0, 0)
-
-        # Add application frames
-        main_frame_layout.addWidget(login)
-        main_frame_layout.addWidget(logged_in)
-        main_frame_layout.addWidget(central)
-        main_frame_layout.addWidget(view_messages)
-
-        self.setLayout(main_frame_layout)
-
-
 def clear_all_fields(widget: QWidget | QFrame):
     """ Recursively clears all input fields inside a QWidget or QFrame. """
     for child in widget.findChildren(QWidget):
@@ -650,6 +410,13 @@ def create_window(main_frame):
 def hash_string(input_string):
     return hashlib.sha256(input_string.encode()).hexdigest()
 
+def post_app_exit_tasks(user_session):
+    """
+    Perform any tasks that need to happen after the app exits but before the program ends.
+    """
+    # close the socket
+    print("Closing user session...")
+    user_session.close()
 
 def main():
     parser = argparse.ArgumentParser(allow_abbrev=False, description="GUI for the Message App Design Exercise")
@@ -665,16 +432,7 @@ def main():
     # load GUI
     app = QApplication(argv)
 
-    login = Login()
-    logged_in = LoggedIn()
-
-    send_message = SendMessage()
-    list_account = ListAccount()
-    central = Central(send_message, list_account)
-    view_messages = ViewMessage()
-
-    main_frame = MainFrame(login, logged_in, central, view_messages)
-
+    main_frame = ui.MainFrame()
     window = create_window(main_frame)
 
     print(args)
@@ -683,18 +441,19 @@ def main():
     if not args.debug:
 
         print("Trying to connect to server...")
-        logged_in.hide()
-        central.hide()
-        view_messages.hide()
+        main_frame.logged_in.hide()
+        main_frame.central.hide()
+        main_frame.view_messages.hide()
 
         user_session = UserSession(args.host, args.port, main_frame, window, False)
     else:
-        view_messages.update_message_list(SAMPLE_DATA)
+        main_frame.view_messages.update_message_list(SAMPLE_DATA)
         user_session = UserSession(args.host, args.port, main_frame, window, True)
 
     # display GUI
     window.show()
 
+    app.aboutToQuit.connect(lambda: post_app_exit_tasks(user_session))
     sys.exit(app.exec())
 
 
