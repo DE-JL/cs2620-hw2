@@ -235,6 +235,10 @@ class UserSession:
 
         num_to_read = min(num_to_read, len(self.messages))
 
+        if num_to_read == 0:
+            QMessageBox.critical(self.window, 'Error', "No messages to read")
+            return
+
         ids = ids[-num_to_read:]
 
         # make read message request
