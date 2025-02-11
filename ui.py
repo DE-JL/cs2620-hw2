@@ -97,7 +97,9 @@ class UserSession:
             QMessageBox.critical(self.window, 'Error', "Authentication failed")
             return
 
-        auth_request = api.AuthRequest(action, username, hashed_password)
+        auth_request = api.AuthRequest(action_type=action,
+                                       username=username,
+                                       password=hashed_password)
         self.sock.sendall(auth_request.pack())
 
         header, recvd = recv_resp_bytes(self.sock)
@@ -146,7 +148,7 @@ class UserSession:
         clear_all_fields(self.main_frame)
 
     def delete_account(self):
-        delete_user_request = api.DeleteUserRequest(self.username)
+        delete_user_request = api.DeleteUserRequest(username=self.username)
         self.sock.sendall(delete_user_request.pack())
 
         header, recvd = recv_resp_bytes(self.sock)
@@ -164,7 +166,8 @@ class UserSession:
     def list_account_event(self):
         search_string = self.main_frame.central.list_account.search_entry.text()
 
-        list_account_request = api.ListUsersRequest(self.username, search_string)
+        list_account_request = api.ListUsersRequest(username=self.username,
+                                                    pattern=search_string)
         self.sock.sendall(list_account_request.pack())
 
         header, recvd = recv_resp_bytes(self.sock)
@@ -186,7 +189,8 @@ class UserSession:
 
         msg = Message(sender=self.username, receiver=recipient, body=message_body)
 
-        send_message_request = api.SendMessageRequest(self.username, msg)
+        send_message_request = api.SendMessageRequest(username=self.username,
+                                                      message=msg)
         self.sock.sendall(send_message_request.pack())
 
         header, recvd = recv_resp_bytes(self.sock)
@@ -217,7 +221,8 @@ class UserSession:
             msg = item.data(Qt.UserRole)
             ids_to_delete.append(msg.id)
 
-        delete_messages_request = api.DeleteMessagesRequest(self.username, ids_to_delete)
+        delete_messages_request = api.DeleteMessagesRequest(username=self.username,
+                                                            message_ids=ids_to_delete)
         self.sock.sendall(delete_messages_request.pack())
 
         header, recvd = recv_resp_bytes(self.sock)
@@ -243,7 +248,8 @@ class UserSession:
         ids = ids[-num_to_read:]
 
         # make read message request
-        read_messages_request = api.ReadMessagesRequest(self.username, ids)
+        read_messages_request = api.ReadMessagesRequest(username=self.username,
+                                                        message_ids=ids)
         self.sock.sendall(read_messages_request.pack())
 
         header, recvd = recv_resp_bytes(self.sock)
@@ -302,7 +308,7 @@ class MessageUpdaterWorker(QObject):
     """
     messages_received = pyqtSignal(list)  # emitted when new messages arrive
 
-    def __init__(self, host, port, username, update_interval=2, parent=None):
+    def __init__(self, host, port, username, update_interval: float, parent=None):
         """
         :param host: Server's hostname or IP address
         :param port: Server's port
@@ -339,9 +345,8 @@ class MessageUpdaterWorker(QObject):
         # 2) Start polling loop
         while self._running:
             try:
-
-                request_data = api.GetMessagesRequest(self.username).pack()
-                self._sock.sendall(request_data)
+                req = api.GetMessagesRequest(username=self.username)
+                self._sock.sendall(req.pack())
 
                 header, recvd = recv_resp_bytes(self._sock)
 
@@ -616,6 +621,7 @@ class MainFrame(QFrame):
         main_frame_layout.addWidget(view_messages)
 
         self.setLayout(main_frame_layout)
+
 
 def clear_all_fields(widget: QWidget | QFrame):
     """ Recursively clears all input fields inside a QWidget or QFrame. """
