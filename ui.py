@@ -143,6 +143,8 @@ class UserSession:
         self.main_frame.login.show()
         self.username = None
 
+        clear_all_fields(self.main_frame)
+
     def delete_account(self):
         delete_user_request = api.DeleteUserRequest(self.username)
         self.sock.sendall(delete_user_request.pack())
@@ -196,8 +198,7 @@ class UserSession:
 
         api.SendMessageResponse.unpack(recvd)
 
-        self.main_frame.central.send_message.recipient_entry.setText("")
-        self.main_frame.central.send_message.message_text.setText("")
+        clear_all_fields(self.main_frame.central.send_message)
 
     def handle_new_messages(self, messages):
         self.messages = messages
@@ -462,6 +463,7 @@ class ListAccount(QWidget):
         self.search_entry = QLineEdit()
         self.search_button = QPushButton("Search")
         self.account_list = QListWidget()
+        self.account_list.setSelectionMode(QAbstractItemView.MultiSelection)
 
         self.frame_layout.addWidget(self.frame_label)
 
@@ -593,24 +595,6 @@ class ViewMessage(QWidget):
         self.unread_count_label.setText(f"Unread Messages: {num_unread}")
 
 
-def create_main_frame(login, logged_in, central, messages):
-    # set up the frame
-    main_frame_layout = QVBoxLayout()
-    main_frame_layout.setSpacing(0)
-    main_frame_layout.setContentsMargins(0, 0, 0, 0)
-
-    # add application frames
-    main_frame_layout.addWidget(login)
-    main_frame_layout.addWidget(logged_in)
-    main_frame_layout.addWidget(central)
-    main_frame_layout.addWidget(messages)
-
-    main_frame = QFrame()
-    main_frame.setLayout(main_frame_layout)
-
-    return main_frame
-
-
 class MainFrame(QFrame):
     def __init__(self, login, logged_in, central, view_messages):
         super().__init__()
@@ -633,13 +617,21 @@ class MainFrame(QFrame):
 
         self.setLayout(main_frame_layout)
 
+def clear_all_fields(widget: QWidget | QFrame):
+    """ Recursively clears all input fields inside a QWidget or QFrame. """
+    for child in widget.findChildren(QWidget):
+        if isinstance(child, (QLineEdit, QTextEdit, QListWidget)):
+            child.clear()
+        elif isinstance(child, (QFrame, QWidget)):  # Recursively clear nested containers
+            clear_all_fields(child)
+
 
 def create_window(main_frame):
     window = QMainWindow()
     window.setWindowTitle("Message App: Design Exercise")
     window.setCentralWidget(main_frame)
     screen_size = QDesktopWidget().screenGeometry()
-    window.resize(screen_size.width() // 2, screen_size.height())
+    window.resize(screen_size.width() // 2, screen_size.height() // 2)
     return window
 
 
