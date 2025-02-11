@@ -13,10 +13,10 @@ from entity import *
 def start_server():
     """Start the server before tests and ensure it shuts down after."""
     print("\nStarting server...")
-    
+
     # Start the server process
     server_process = subprocess.Popen(["python", "server.py"], stdout=subprocess.PIPE, stderr=subprocess.PIPE)
-    
+
     # Wait for server to be ready (adjust timeout if necessary)
     timeout = 5
     start_time = time.time()

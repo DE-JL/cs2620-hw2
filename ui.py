@@ -15,7 +15,7 @@ from PyQt5.QtWidgets import QMessageBox, QLineEdit, QTextEdit
 from PyQt5.QtCore import QObject, pyqtSignal, pyqtSlot
 from PyQt5.QtCore import QThread
 
-from config import HOST, PORT
+from config import LOCALHOST, SERVER_PORT
 from entity import Message, ResponseType, Header, ErrorResponse
 
 from utils import recv_resp_bytes
