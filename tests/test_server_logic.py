@@ -23,7 +23,7 @@ def start_server():
     while time.time() - start_time < timeout:
         try:
             # Try connecting to see if server is up
-            sock = socket.create_connection((HOST, PORT), timeout=1)
+            sock = socket.create_connection((LOCALHOST, SERVER_PORT), timeout=1)
             sock.close()
             print("Server is ready!")
             break
@@ -45,7 +45,7 @@ def start_server():
 def sock():
     """Fixture to create and close a socket connection before and after each test."""
     client_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-    client_socket.connect((HOST, PORT))
+    client_socket.connect((LOCALHOST, SERVER_PORT))
     yield client_socket  # This is what gets passed into test functions
     client_socket.close()  # Cleanup after each test
 
