@@ -40,6 +40,15 @@ class UserSession:
     """
 
     def __init__(self, host, port, main_frame, window, debug=False):
+        """
+        Initialize a UserSession instance.
+
+        :param host: The hostname or IP address of the server
+        :param port: The port number to connect to the server on
+        :param main_frame: The main application frame
+        :param window: The main application window
+        :param debug: Whether to run the client in debug mode
+        """
         self.main_frame = main_frame
         self.window = window
         self.debug = debug
@@ -73,10 +82,34 @@ class UserSession:
         self.main_frame.view_messages.delete_button.clicked.connect(self.delete_messages_event)
 
     def close(self):
+        """
+        Close the connection to the server.
+
+        If the client is not running in debug mode, this method will close the
+        socket connection to the server. This method should be called when the
+        client is finished interacting with the server.
+        """
+        
         if not self.debug:
             self.sock.close()
     
     def authenticate_user(self, action):
+        """
+        Authenticate the user with the given action type.
+
+        This method will attempt to authenticate the user with the given action type
+        (either AuthRequest.ActionType.LOGIN or AuthRequest.ActionType.CREATE_ACCOUNT).
+        If the authentication is successful, the client will enter the logged in state.
+
+        If the client is running in debug mode and the username is "admin" and the
+        password is "pass", the client will automatically be authenticated and enter
+        the logged in state.
+
+        If the authentication fails, the client will display an error message to the user.
+
+        :param action: The action type to use for authentication.
+        :type action: api.AuthRequest.ActionType
+        """
         print("Authenticating user...")
         username = self.main_frame.login.user_entry.text()
         password = self.main_frame.login.password_entry.text()
@@ -131,7 +164,14 @@ class UserSession:
         self.authenticate_user(api.AuthRequest.ActionType.LOGIN)
 
     def sign_out(self):
+        """
+        Sign out of the logged in user and go back to the login screen.
 
+        If the client is not in debug mode, stop the logged in session.
+
+        :return: None
+        """
+        
         if not self.debug:
             self.stop_logged_session()
         print("Signing out...")
@@ -148,6 +188,16 @@ class UserSession:
         clear_all_fields(self.main_frame)
 
     def delete_account(self):
+        """
+        Delete the currently logged in user's account.
+
+        This method sends a delete user request to the server and if the
+        response is an error, it displays an error box with the response
+        message. If the response is not an error, it successfully deletes the
+        user's account and signs the user out.
+
+        :return: None
+        """
         delete_user_request = api.DeleteUserRequest(username=self.username)
         self.sock.sendall(delete_user_request.pack())
 
@@ -164,6 +214,18 @@ class UserSession:
         self.sign_out()
 
     def list_account_event(self):
+        """
+        Handle the list account button event.
+
+        This method is called when the search button in the list account frame is clicked.
+        It sends a list users request to the server with the search string from the
+        search entry and the currently logged in user's username. If the response is an
+        error, it displays an error box with the response message. If the response is not
+        an error, it clears the list widget and populates it with the usernames returned
+        in the response.
+
+        :return: None
+        """
         search_string = self.main_frame.central.list_account.search_entry.text()
 
         list_account_request = api.ListUsersRequest(username=self.username,
@@ -184,6 +246,18 @@ class UserSession:
             self.main_frame.central.list_account.account_list.insertItem(idx, user)
 
     def send_message_event(self):
+        """
+        Handle the send message button event.
+
+        This method is called when the send button in the send message frame is clicked.
+        It constructs a message object from the sender, recipient, and body from the
+        send message frame. It then sends a send message request to the server with the
+        message object and the currently logged in user's username. If the response is an
+        error, it displays an error box with the response message. If the response is not
+        an error, it clears all the fields in the send message frame.
+
+        :return: None
+        """
         recipient = self.main_frame.central.send_message.recipient_entry.text()
         message_body = self.main_frame.central.send_message.message_text.toPlainText()
 
@@ -205,11 +279,33 @@ class UserSession:
         clear_all_fields(self.main_frame.central.send_message)
 
     def handle_new_messages(self, messages):
+        """
+        Handle a new list of messages from the server.
+
+        This method is called when a GetMessagesResponse is received from the server.
+        It stores the messages in the messages attribute, sorts them by timestamp in
+        descending order, and updates the messages list in the view messages frame.
+
+        :param messages: The list of messages retrieved from the server.
+        :type messages: list[Message]
+        :return: None
+        """
         self.messages = messages
         self.messages.sort(key=lambda x: x.ts, reverse=True)
         self.main_frame.view_messages.update_message_list(messages)
 
     def delete_messages_event(self):
+        """
+        Handle the delete message button event.
+
+        This method is called when the delete button in the view messages frame is clicked.
+        It constructs a delete message request object with the IDs of the selected messages
+        and the currently logged in user's username. It then sends the request to the server.
+        If the response is an error, it displays an error box with the response message.
+        If the response is not an error, it clears the messages list in the view messages frame.
+
+        :return: None
+        """
         selected_items = self.main_frame.view_messages.message_list.selectedItems()
         if not selected_items:
             print("No messages selected")
@@ -235,6 +331,18 @@ class UserSession:
         api.DeleteMessagesResponse.unpack(recvd)
 
     def read_messages_event(self):
+        """
+        Handle the read messages button event.
+
+        This method is called when the read messages button in the view messages frame is clicked.
+        It constructs a read message request object with the IDs of the selected messages
+        and the currently logged in user's username. It then sends the request to the server.
+        If the response is an error, it displays an error box with the response message.
+        If the response is not an error, it updates the messages list in the view messages frame
+        to mark the messages as read.
+
+        :return: None
+        """
         try:
             num_to_read = int(self.main_frame.view_messages.num_read_entry.text())
         except ValueError:
@@ -268,7 +376,19 @@ class UserSession:
         api.ReadMessagesResponse.unpack(recvd)
 
     def start_logged_session(self):
-        # Create the worker with a fresh socket
+        """
+        Start the logged in session.
+
+        This method is called after a user logs in. It creates a MessageUpdaterWorker
+        object with the server's hostname, port, the currently logged in user's username,
+        and an update interval of 0.1 seconds. It then creates a QThread object and moves
+        the worker to the thread. It connects the worker's messages_received signal to
+        the handle_new_messages method and starts the thread. This causes the worker to
+        periodically poll the server for new messages and update the messages list in
+        the view messages frame with the new messages.
+
+        :return: None
+        """
         self.message_worker = MessageUpdaterWorker(
             host=self.host,
             port=self.port,
@@ -292,6 +412,13 @@ class UserSession:
         self.message_thread.start()
 
     def stop_logged_session(self):
+        """
+        Stop the logged in session.
+
+        This method stops the MessageUpdaterWorker and the QThread that it is running in.
+        It sends a stop signal to the worker, asks the thread to quit, waits for the thread to
+        fully exit, and then cleans up the references to the worker and thread.
+        """
         if self.message_worker and self.message_thread:
             # Signal the worker to stop
             self.message_worker.stop()
@@ -332,10 +459,10 @@ class MessageUpdaterWorker(QObject):
     @pyqtSlot()
     def run(self):
         """
-        Worker thread's main loop.
-        1) Create and connect a separate socket
-        2) Periodically fetch new messages
-        3) Emit results back to main thread
+        Start a separate thread to periodically poll the server for new messages
+        and emit them via the messages_received signal.
+
+        :return: None
         """
         self._running = True
 
@@ -385,7 +512,15 @@ class MessageUpdaterWorker(QObject):
         self._running = False
 
 def clear_all_fields(widget: QWidget | QFrame):
-    """ Recursively clears all input fields inside a QWidget or QFrame. """
+    """
+    Recursively clear all form fields and list widgets in a given widget tree.
+
+    Walks the widget tree of the given widget, clearing all QLineEdit, QTextEdit, and QListWidget
+    instances, as well as any QFrame or QWidget instances that may contain nested widgets.
+
+    :param widget: The root of the widget tree to clear.
+    :type widget: QWidget | QFrame
+    """
     for child in widget.findChildren(QWidget):
         if isinstance(child, (QLineEdit, QTextEdit, QListWidget)):
             child.clear()
@@ -394,6 +529,14 @@ def clear_all_fields(widget: QWidget | QFrame):
 
 
 def create_window(main_frame):
+    """
+    Create a window with a specified main frame, and set its title and initial size.
+
+    :param main_frame: The widget to set as the central widget of the window.
+    :type main_frame: QWidget
+    :return: The created window, ready to be shown.
+    :rtype: QMainWindow
+    """
     window = QMainWindow()
     window.setWindowTitle("Message App: Design Exercise")
     window.setCentralWidget(main_frame)
@@ -403,13 +546,23 @@ def create_window(main_frame):
 
 
 def hash_string(input_string):
+    """
+    Hash the given input string using SHA-256.
+
+    :param input_string: The string to hash.
+    :type input_string: str
+    :return: The hashed string, as a hexadecimal string.
+    :rtype: str
+    """
     return hashlib.sha256(input_string.encode()).hexdigest()
 
 def post_app_exit_tasks(user_session):
     """
-    Perform any tasks that need to happen after the app exits but before the program ends.
+    Perform tasks that should be done when the application exits.
+
+    :param user_session: The user session to close.
+    :type user_session: UserSession
     """
-    # close the socket
     print("Closing user session...")
     user_session.close()
 
