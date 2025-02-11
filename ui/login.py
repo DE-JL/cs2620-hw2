@@ -3,6 +3,9 @@ from PyQt5.QtCore import Qt
 
 
 class Login(QWidget):
+    """
+    Login class for the user signup/login window.
+    """
 
     def __init__(self):
         super().__init__()

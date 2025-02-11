@@ -1,8 +1,14 @@
 from PyQt5.QtWidgets import QWidget, QGridLayout, QLabel, QLineEdit, QTextEdit, QPushButton
 
+
 class SendMessage(QWidget):
+    """
+    Send message class.
+    """
+
     def __init__(self):
         super().__init__()
+
         self.frame_layout = QGridLayout()
         self.frame_layout.setSpacing(0)
         self.frame_layout.setContentsMargins(0, 0, 0, 0)

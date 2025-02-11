@@ -5,7 +5,12 @@ from .view_message import ViewMessage
 
 from PyQt5.QtWidgets import QFrame, QVBoxLayout
 
+
 class MainFrame(QFrame):
+    """
+    Main frame class for the application.
+    """
+
     def __init__(self):
         super().__init__()
 

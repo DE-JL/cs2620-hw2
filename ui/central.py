@@ -3,14 +3,19 @@ from PyQt5.QtWidgets import QHBoxLayout
 from PyQt5.QtWidgets import QFrame
 
 from .send_message import SendMessage
-from .list_account import ListAccount
+from .list_account import ListUsers
 
 
 class Central(QWidget):
+    """
+    Central class for containing the send message and list users section.
+    """
+
     def __init__(self):
         super().__init__()
+
         self.send_message = SendMessage()
-        self.list_account = ListAccount()
+        self.list_account = ListUsers()
 
         self.frame_layout = QHBoxLayout()
 

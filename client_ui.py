@@ -1,7 +1,6 @@
-import socket
-import sys
 import argparse
-from sys import argv
+import hashlib
+import socket
 import time
 
 from PyQt5.QtWidgets import QApplication, QFrame, QListWidget, QWidget
@@ -10,15 +9,15 @@ from PyQt5.QtCore import Qt
 from PyQt5.QtWidgets import QMessageBox, QLineEdit, QTextEdit
 from PyQt5.QtCore import QObject, pyqtSignal, pyqtSlot
 from PyQt5.QtCore import QThread
-
-from entity import Message, ResponseType, ErrorResponse
-
-from utils import recv_resp_bytes
+from sys import argv
 
 import api
 import ui
 
-import hashlib
+from config import GUI_REFRESH_RATE
+from entity import Message, ResponseType, ErrorResponse
+from ui import MainFrame
+from utils import recv_resp_bytes
 
 SAMPLE_DATA = [
     Message(sender="alice", receiver="bob", body="Hey Bob, are you free later?"),
@@ -39,17 +38,17 @@ class UserSession:
     A class to represent a socket-based user session
     """
 
-    def __init__(self, host, port, main_frame, window, debug=False):
+    def __init__(self, host: str, port: int, mainframe: MainFrame, window: QMainWindow, debug: bool = False):
         """
         Initialize a UserSession instance.
 
         :param host: The hostname or IP address of the server
         :param port: The port number to connect to the server on
-        :param main_frame: The main application frame
+        :param mainframe: The main application frame
         :param window: The main application window
         :param debug: Whether to run the client in debug mode
         """
-        self.main_frame = main_frame
+        self.mainframe = mainframe
         self.window = window
         self.debug = debug
         self.username = None
@@ -61,25 +60,24 @@ class UserSession:
         self.message_worker = None
         self.messages = None
 
-        # initialize connection for main GUI thread
+        # Initialize connection for main GUI thread
         if not self.debug:
             try:
                 self.sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
                 self.sock.connect((self.host, self.port))
             except ConnectionRefusedError:
                 print("Connection refused. Please check if the server is running.")
-                sys.exit(1)
+                exit(1)
 
         # Register event handlers
-        self.main_frame.login.login_button.clicked.connect(self.login_user)
-        self.main_frame.login.sign_up_button.clicked.connect(self.sign_up)
-        self.main_frame.logged_in.sign_out_button.clicked.connect(self.sign_out)
-        self.main_frame.logged_in.delete_account_button.clicked.connect(self.delete_account)
-        self.main_frame.central.list_account.search_button.clicked.connect(self.list_account_event)
-        self.main_frame.central.send_message.send_button.clicked.connect(self.send_message_event)
-        self.main_frame.view_messages.read_button.clicked.connect(self.read_messages_event)
-        # TODO Add event handler for delete message
-        self.main_frame.view_messages.delete_button.clicked.connect(self.delete_messages_event)
+        self.mainframe.login.login_button.clicked.connect(self.login_user)
+        self.mainframe.login.sign_up_button.clicked.connect(self.sign_up)
+        self.mainframe.logged_in.sign_out_button.clicked.connect(self.sign_out)
+        self.mainframe.logged_in.delete_account_button.clicked.connect(self.delete_account)
+        self.mainframe.central.list_account.search_button.clicked.connect(self.list_account_event)
+        self.mainframe.central.send_message.send_button.clicked.connect(self.send_message_event)
+        self.mainframe.view_messages.read_button.clicked.connect(self.read_messages_event)
+        self.mainframe.view_messages.delete_button.clicked.connect(self.delete_messages_event)
 
     def close(self):
         """
@@ -89,10 +87,10 @@ class UserSession:
         socket connection to the server. This method should be called when the
         client is finished interacting with the server.
         """
-        
+
         if not self.debug:
             self.sock.close()
-    
+
     def authenticate_user(self, action):
         """
         Authenticate the user with the given action type.
@@ -111,19 +109,20 @@ class UserSession:
         :type action: api.AuthRequest.ActionType
         """
         print("Authenticating user...")
-        username = self.main_frame.login.user_entry.text()
-        password = self.main_frame.login.password_entry.text()
+        username = self.mainframe.login.user_entry.text()
+        password = self.mainframe.login.password_entry.text()
 
+        # Hash the password
         hashed_password = hash_string(password)
 
         if self.debug and username == "admin" and password == "pass":  # Dummy default password
             # hide the login frame
-            self.main_frame.login.hide()
+            self.mainframe.login.hide()
             # show logged in frame
-            self.main_frame.logged_in.show()
-            self.main_frame.central.show()
-            self.main_frame.view_messages.show()
-            self.main_frame.logged_in.update_user_label(username)
+            self.mainframe.logged_in.show()
+            self.mainframe.central.show()
+            self.mainframe.view_messages.show()
+            self.mainframe.logged_in.update_user_label(username)
             self.username = username
             return
         elif self.debug:
@@ -147,12 +146,12 @@ class UserSession:
         print("Authentication successful")
 
         # hide the login frame
-        self.main_frame.login.hide()
+        self.mainframe.login.hide()
         # show logged in frame
-        self.main_frame.logged_in.show()
-        self.main_frame.central.show()
-        self.main_frame.view_messages.show()
-        self.main_frame.logged_in.update_user_label(username)
+        self.mainframe.logged_in.show()
+        self.mainframe.central.show()
+        self.mainframe.view_messages.show()
+        self.mainframe.logged_in.update_user_label(username)
         self.username = username
 
         self.start_logged_session()
@@ -165,31 +164,30 @@ class UserSession:
 
     def sign_out(self):
         """
-        Sign out of the logged in user and go back to the login screen.
-
-        If the client is not in debug mode, stop the logged in session.
-
+        Sign the user out and go back to the login screen.
+        If the client is not in debug mode, stop the session.
         :return: None
         """
-        
         if not self.debug:
             self.stop_logged_session()
         print("Signing out...")
-        # hide logged in frame
-        self.main_frame.logged_in.hide()
-        self.main_frame.central.hide()
-        self.main_frame.view_messages.hide()
-        # show login frame
-        self.main_frame.login.user_entry.setText("")
-        self.main_frame.login.password_entry.setText("")
-        self.main_frame.login.show()
+
+        # Hide logged in frame
+        self.mainframe.logged_in.hide()
+        self.mainframe.central.hide()
+        self.mainframe.view_messages.hide()
+
+        # Show login frame
+        self.mainframe.login.user_entry.setText("")
+        self.mainframe.login.password_entry.setText("")
+        self.mainframe.login.show()
         self.username = None
 
-        clear_all_fields(self.main_frame)
+        clear_all_fields(self.mainframe)
 
     def delete_account(self):
         """
-        Delete the currently logged in user's account.
+        Delete the currently logged-in user's account.
 
         This method sends a delete user request to the server and if the
         response is an error, it displays an error box with the response
@@ -219,14 +217,14 @@ class UserSession:
 
         This method is called when the search button in the list account frame is clicked.
         It sends a list users request to the server with the search string from the
-        search entry and the currently logged in user's username. If the response is an
+        search entry and the currently logged-in user's username. If the response is an
         error, it displays an error box with the response message. If the response is not
         an error, it clears the list widget and populates it with the usernames returned
         in the response.
 
         :return: None
         """
-        search_string = self.main_frame.central.list_account.search_entry.text()
+        search_string = self.mainframe.central.list_account.search_entry.text()
 
         list_account_request = api.ListUsersRequest(username=self.username,
                                                     pattern=search_string)
@@ -241,9 +239,9 @@ class UserSession:
 
         list_account_response = api.ListUsersResponse.unpack(recvd)
 
-        self.main_frame.central.list_account.account_list.clear()
+        self.mainframe.central.list_account.account_list.clear()
         for idx, user in enumerate(list_account_response.usernames):
-            self.main_frame.central.list_account.account_list.insertItem(idx, user)
+            self.mainframe.central.list_account.account_list.insertItem(idx, user)
 
     def send_message_event(self):
         """
@@ -252,14 +250,14 @@ class UserSession:
         This method is called when the send button in the send message frame is clicked.
         It constructs a message object from the sender, recipient, and body from the
         send message frame. It then sends a send message request to the server with the
-        message object and the currently logged in user's username. If the response is an
+        message object and the currently logged-in user's username. If the response is an
         error, it displays an error box with the response message. If the response is not
         an error, it clears all the fields in the send message frame.
 
         :return: None
         """
-        recipient = self.main_frame.central.send_message.recipient_entry.text()
-        message_body = self.main_frame.central.send_message.message_text.toPlainText()
+        recipient = self.mainframe.central.send_message.recipient_entry.text()
+        message_body = self.mainframe.central.send_message.message_text.toPlainText()
 
         msg = Message(sender=self.username, receiver=recipient, body=message_body)
 
@@ -276,7 +274,7 @@ class UserSession:
 
         api.SendMessageResponse.unpack(recvd)
 
-        clear_all_fields(self.main_frame.central.send_message)
+        clear_all_fields(self.mainframe.central.send_message)
 
     def handle_new_messages(self, messages):
         """
@@ -292,7 +290,7 @@ class UserSession:
         """
         self.messages = messages
         self.messages.sort(key=lambda x: x.ts, reverse=True)
-        self.main_frame.view_messages.update_message_list(messages)
+        self.mainframe.view_messages.update_message_list(messages)
 
     def delete_messages_event(self):
         """
@@ -300,13 +298,13 @@ class UserSession:
 
         This method is called when the delete button in the view messages frame is clicked.
         It constructs a delete message request object with the IDs of the selected messages
-        and the currently logged in user's username. It then sends the request to the server.
+        and the currently logged-in user's username. It then sends the request to the server.
         If the response is an error, it displays an error box with the response message.
         If the response is not an error, it clears the messages list in the view messages frame.
 
         :return: None
         """
-        selected_items = self.main_frame.view_messages.message_list.selectedItems()
+        selected_items = self.mainframe.view_messages.message_list.selectedItems()
         if not selected_items:
             print("No messages selected")
             return  # Nothing to delete
@@ -336,7 +334,7 @@ class UserSession:
 
         This method is called when the read messages button in the view messages frame is clicked.
         It constructs a read message request object with the IDs of the selected messages
-        and the currently logged in user's username. It then sends the request to the server.
+        and the currently logged-in user's username. It then sends the request to the server.
         If the response is an error, it displays an error box with the response message.
         If the response is not an error, it updates the messages list in the view messages frame
         to mark the messages as read.
@@ -344,7 +342,7 @@ class UserSession:
         :return: None
         """
         try:
-            num_to_read = int(self.main_frame.view_messages.num_read_entry.text())
+            num_to_read = int(self.mainframe.view_messages.num_read_entry.text())
         except ValueError:
             QMessageBox.critical(self.window, 'Error', "Please enter a valid number of messages to read")
             return
@@ -377,10 +375,10 @@ class UserSession:
 
     def start_logged_session(self):
         """
-        Start the logged in session.
+        Start the logged-in session.
 
         This method is called after a user logs in. It creates a MessageUpdaterWorker
-        object with the server's hostname, port, the currently logged in user's username,
+        object with the server's hostname, port, the currently logged-in user's username,
         and an update interval of 0.1 seconds. It then creates a QThread object and moves
         the worker to the thread. It connects the worker's messages_received signal to
         the handle_new_messages method and starts the thread. This causes the worker to
@@ -389,12 +387,9 @@ class UserSession:
 
         :return: None
         """
-        self.message_worker = MessageUpdaterWorker(
-            host=self.host,
-            port=self.port,
-            username=self.username,
-            update_interval=0.1
-        )
+        self.message_worker = MessageUpdaterWorker(host=self.host,
+                                                   port=self.port,
+                                                   username=self.username)
 
         # Create the thread object
         self.message_thread = QThread()
@@ -413,7 +408,7 @@ class UserSession:
 
     def stop_logged_session(self):
         """
-        Stop the logged in session.
+        Stop the logged-in session.
 
         This method stops the MessageUpdaterWorker and the QThread that it is running in.
         It sends a stop signal to the worker, asks the thread to quit, waits for the thread to
@@ -436,25 +431,24 @@ class UserSession:
 
 class MessageUpdaterWorker(QObject):
     """
-    Worker class to periodically fetch new messages
-    from a separate socket connection.
+    Worker class to periodically fetch new messages from a separate socket connection.
     """
     messages_received = pyqtSignal(list)  # emitted when new messages arrive
 
-    def __init__(self, host, port, username, update_interval: float, parent=None):
+    def __init__(self, host: str, port: int, username: str, parent=None):
         """
         :param host: Server's hostname or IP address
         :param port: Server's port
         :param username: The current user's name (for message queries, if needed)
-        :param update_interval: How often (in seconds) to poll for messages
         """
         super().__init__(parent)
+
         self.host = host
         self.port = port
         self.username = username
-        self.update_interval = update_interval
-        self._running = False
-        self._sock = None
+
+        self.running = False
+        self.sock = None
 
     @pyqtSlot()
     def run(self):
@@ -464,25 +458,24 @@ class MessageUpdaterWorker(QObject):
 
         :return: None
         """
-        self._running = True
+        self.running = True
 
         # 1) Create and connect a new socket in this worker thread.
-        self._sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+        self.sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
         try:
-            self._sock.connect((self.host, self.port))
+            self.sock.connect((self.host, self.port))
             print("[MessageUpdaterWorker] Connected to server on separate socket.")
         except ConnectionRefusedError:
             print("[MessageUpdaterWorker] Could not connect to server.")
-            self._running = False
+            self.running = False
 
         # 2) Start polling loop
-        while self._running:
+        while self.running:
             try:
                 req = api.GetMessagesRequest(username=self.username)
-                self._sock.sendall(req.pack())
+                self.sock.sendall(req.pack())
 
-                header, recvd = recv_resp_bytes(self._sock)
-
+                header, recvd = recv_resp_bytes(self.sock)
                 if ResponseType(header.header_type) == ResponseType.ERROR:
                     resp = ErrorResponse.unpack(recvd)
                     print(f"[MessageUpdaterWorker] Error: {resp.message}")
@@ -497,19 +490,20 @@ class MessageUpdaterWorker(QObject):
                 break
 
             # Sleep for the update interval (in seconds)
-            time.sleep(self.update_interval)
+            time.sleep(GUI_REFRESH_RATE)
 
         # Cleanup
-        if self._sock:
-            self._sock.close()
-            self._sock = None
+        if self.sock:
+            self.sock.close()
+            self.sock = None
         print("[MessageUpdaterWorker] Worker thread stopped.")
 
     def stop(self):
         """
         Signal the worker loop to stop running.
         """
-        self._running = False
+        self.running = False
+
 
 def clear_all_fields(widget: QWidget | QFrame):
     """
@@ -528,18 +522,18 @@ def clear_all_fields(widget: QWidget | QFrame):
             clear_all_fields(child)
 
 
-def create_window(main_frame):
+def create_window(mainframe: MainFrame) -> QMainWindow:
     """
     Create a window with a specified main frame, and set its title and initial size.
 
-    :param main_frame: The widget to set as the central widget of the window.
-    :type main_frame: QWidget
+    :param mainframe: The widget to set as the central widget of the window.
+    :type mainframe: QWidget
     :return: The created window, ready to be shown.
     :rtype: QMainWindow
     """
     window = QMainWindow()
     window.setWindowTitle("Message App: Design Exercise")
-    window.setCentralWidget(main_frame)
+    window.setCentralWidget(mainframe)
     screen_size = QDesktopWidget().screenGeometry()
     window.resize(screen_size.width() // 2, screen_size.height() // 2)
     return window
@@ -556,6 +550,7 @@ def hash_string(input_string):
     """
     return hashlib.sha256(input_string.encode()).hexdigest()
 
+
 def post_app_exit_tasks(user_session):
     """
     Perform tasks that should be done when the application exits.
@@ -566,43 +561,38 @@ def post_app_exit_tasks(user_session):
     print("Closing user session...")
     user_session.close()
 
+
 def main():
     parser = argparse.ArgumentParser(allow_abbrev=False, description="GUI for the Message App Design Exercise")
-
     parser.add_argument("host", type=str, metavar='host', help="The host on which the server is running")
-
     parser.add_argument("port", type=int, metavar='port', help="The port at which the server is listening")
-
     parser.add_argument("--debug", action="store_true", help="Enable debug mode")
-
     args = parser.parse_args()
 
     # load GUI
     app = QApplication(argv)
 
-    main_frame = ui.MainFrame()
-    window = create_window(main_frame)
+    mainframe = ui.MainFrame()
+    window = create_window(mainframe)
 
     print(args)
 
     # hide central frames
     if not args.debug:
-
         print("Trying to connect to server...")
-        main_frame.logged_in.hide()
-        main_frame.central.hide()
-        main_frame.view_messages.hide()
-
-        user_session = UserSession(args.host, args.port, main_frame, window, False)
+        mainframe.logged_in.hide()
+        mainframe.central.hide()
+        mainframe.view_messages.hide()
+        user_session = UserSession(args.host, args.port, mainframe, window, False)
     else:
-        main_frame.view_messages.update_message_list(SAMPLE_DATA)
-        user_session = UserSession(args.host, args.port, main_frame, window, True)
+        mainframe.view_messages.update_message_list(SAMPLE_DATA)
+        user_session = UserSession(args.host, args.port, mainframe, window, True)
 
     # display GUI
     window.show()
 
     app.aboutToQuit.connect(lambda: post_app_exit_tasks(user_session))
-    sys.exit(app.exec())
+    exit(app.exec())
 
 
 if __name__ == "__main__":

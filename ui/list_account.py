@@ -3,14 +3,20 @@ from PyQt5.QtWidgets import QAbstractItemView, QListWidget
 from PyQt5.QtWidgets import QHBoxLayout, QVBoxLayout
 from PyQt5.QtWidgets import QFrame
 
-class ListAccount(QWidget):
+
+class ListUsers(QWidget):
+    """
+    List users class for user search section.
+    """
+
     def __init__(self):
         super().__init__()
+
         self.frame_layout = QVBoxLayout()
         self.frame_layout.setSpacing(0)
         self.frame_layout.setContentsMargins(0, 0, 0, 0)
 
-        self.frame_label = QLabel("Search Accounts")
+        self.frame_label = QLabel("Search Users")
         self.entry_label = QLabel("Search: ")
         self.search_entry = QLineEdit()
         self.search_button = QPushButton("Search")

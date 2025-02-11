@@ -7,33 +7,17 @@ from PyQt5.QtGui import QFont, QIntValidator, QValidator
 from PyQt5.QtWidgets import QPushButton
 from PyQt5.QtWidgets import QLineEdit
 
-
-class NoLeadingZeroValidator(QIntValidator):
-    def validate(self, input_str, pos):
-        # Allow empty input (to support deletion)
-        if input_str == "":
-            return QValidator.Intermediate, input_str, pos
-
-        # Prevent leading zeros unless the number is just "0"
-        if input_str.startswith("0") and len(input_str) > 1:
-            return QValidator.Invalid, input_str, pos
-
-            # Check if input is a valid integer
-        try:
-            num = int(input_str)
-        except ValueError:
-            return QValidator.Invalid, input_str, pos
-
-        # Ensure it's within the valid range
-        if self.bottom() <= num <= self.top():
-            return QValidator.Acceptable, input_str, pos
-        else:
-            return QValidator.Invalid, input_str, pos
+from entity import Message
 
 
 class ViewMessage(QWidget):
+    """
+    View message class for viewing the delivered count and reading/deleting messages.
+    """
+
     def __init__(self):
         super().__init__()
+
         self.frame_layout = QHBoxLayout()
         self.frame_layout.setSpacing(0)
         self.frame_layout.setContentsMargins(0, 0, 0, 0)
@@ -66,19 +50,19 @@ class ViewMessage(QWidget):
 
         self.setLayout(self.frame_layout)
 
-    def update_message_list(self, messages):
+    def update_message_list(self, messages: list[Message]):
+        # Get the set if message IDs of selected messages
         selected_ids = set()
         for item in self.message_list.selectedItems():
             msg = item.data(Qt.UserRole)
             selected_ids.add(msg.id)
 
-        # print(f"Selected IDs pre-refresh: {selected_ids}")
-
-        num_unread = 0
-
+        # Block UI updates
         self.message_list.blockSignals(True)
-
         self.message_list.clear()
+
+        # Rerender each message one by one
+        num_unread = 0
         for message in messages:
             if not message.read:
                 num_unread += 1
@@ -93,17 +77,42 @@ class ViewMessage(QWidget):
             # Create a list item
             item = QListWidgetItem(display_text)
 
-            # Store the entire Message object in user data
+            # Store the entire Message object in user data and add it to the list
             item.setData(Qt.UserRole, message)
-
             self.message_list.addItem(item)
 
             # Make sure previously selected items are selected
             if message.id in selected_ids:
-                # print(f"Selected ID found: {message.id}")
                 item.setSelected(True)
 
+        # Unblock UI updates
         self.message_list.blockSignals(False)
-        self.message_list.repaint()  # Force a refresh only once
+        self.message_list.repaint()
+        self.unread_count_label.setText(f"Unread: {num_unread}")
 
-        self.unread_count_label.setText(f"Unread Messages: {num_unread}")
+
+class NoLeadingZeroValidator(QIntValidator):
+    """
+    Input validator utility class.
+    """
+
+    def validate(self, input_str: str, pos: int):
+        # Allow empty input (to support deletion)
+        if input_str == "":
+            return QValidator.Intermediate, input_str, pos
+
+        # Prevent leading zeros unless the number is just "0"
+        if input_str.startswith("0") and len(input_str) > 1:
+            return QValidator.Invalid, input_str, pos
+
+        # Check if input is a valid integer
+        try:
+            num = int(input_str)
+        except ValueError:
+            return QValidator.Invalid, input_str, pos
+
+        # Ensure it's within the valid range
+        if self.bottom() <= num <= self.top():
+            return QValidator.Acceptable, input_str, pos
+        else:
+            return QValidator.Invalid, input_str, pos
