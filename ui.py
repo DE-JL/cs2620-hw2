@@ -15,8 +15,6 @@ from PyQt5.QtWidgets import QMessageBox, QLineEdit, QTextEdit
 from PyQt5.QtCore import QObject, pyqtSignal, pyqtSlot
 from PyQt5.QtCore import QThread
 
-
-
 from config import HOST, PORT
 from entity import Message, ResponseType, Header, ErrorResponse
 
@@ -44,6 +42,7 @@ class UserSession:
     """
     A class to represent a socket-based user session
     """
+
     def __init__(self, host, port, main_frame, window, debug=False):
         self.main_frame = main_frame
         self.window = window
@@ -77,15 +76,14 @@ class UserSession:
         # TODO Add event handler for delete message
         self.main_frame.view_messages.delete_button.clicked.connect(self.delete_messages_event)
 
-
     def authenticate_user(self, action):
         print("Authenticating user...")
-        username  = self.main_frame.login.user_entry.text()
+        username = self.main_frame.login.user_entry.text()
         password = self.main_frame.login.password_entry.text()
 
         hashed_password = hash_string(password)
-        
-        if self.debug and username == "admin" and password == "pass": # Dummy default password
+
+        if self.debug and username == "admin" and password == "pass":  # Dummy default password
             # hide the login frame
             self.main_frame.login.hide()
             # show logged in frame
@@ -98,7 +96,7 @@ class UserSession:
         elif self.debug:
             QMessageBox.critical(self.window, 'Error', "Authentication failed")
             return
-        
+
         auth_request = api.AuthRequest(action, username, hashed_password)
         self.sock.sendall(auth_request.pack())
 
@@ -108,9 +106,9 @@ class UserSession:
             resp = ErrorResponse.unpack(recvd)
             QMessageBox.critical(self.window, 'Error', resp.message)
             return
-        
+
         api.AuthResponse.unpack(recvd)
-        
+
         print("Authentication successful")
 
         # hide the login frame
@@ -126,7 +124,7 @@ class UserSession:
 
     def sign_up(self):
         self.authenticate_user(api.AuthRequest.ActionType.CREATE_ACCOUNT)
-    
+
     def login_user(self):
         self.authenticate_user(api.AuthRequest.ActionType.LOGIN)
 
@@ -155,12 +153,12 @@ class UserSession:
             resp = ErrorResponse.unpack(recvd)
             QMessageBox.critical(self.window, 'Error', resp.message)
             return
-        
+
         api.DeleteUserResponse.unpack(recvd)
-        
+
         print("Account deleted")
         self.sign_out()
-    
+
     def list_account_event(self):
         search_string = self.main_frame.central.list_account.search_entry.text()
 
@@ -173,13 +171,13 @@ class UserSession:
             resp = ErrorResponse.unpack(recvd)
             QMessageBox.critical(self.window, 'Error', resp.message)
             return
-        
+
         list_account_response = api.ListUsersResponse.unpack(recvd)
-        
+
         self.main_frame.central.list_account.account_list.clear()
         for idx, user in enumerate(list_account_response.usernames):
             self.main_frame.central.list_account.account_list.insertItem(idx, user)
-    
+
     def send_message_event(self):
         recipient = self.main_frame.central.send_message.recipient_entry.text()
         message_body = self.main_frame.central.send_message.message_text.toPlainText()
@@ -195,17 +193,17 @@ class UserSession:
             resp = ErrorResponse.unpack(recvd)
             QMessageBox.critical(self.window, 'Error', resp.message)
             return
-        
+
         api.SendMessageResponse.unpack(recvd)
 
         self.main_frame.central.send_message.recipient_entry.setText("")
         self.main_frame.central.send_message.message_text.setText("")
-    
+
     def handle_new_messages(self, messages):
         self.messages = messages
-        self.messages.sort(key = lambda x: x.ts, reverse=True)
+        self.messages.sort(key=lambda x: x.ts, reverse=True)
         self.main_frame.view_messages.update_message_list(messages)
-    
+
     def delete_messages_event(self):
         selected_items = self.main_frame.view_messages.message_list.selectedItems()
         if not selected_items:
@@ -227,7 +225,7 @@ class UserSession:
             resp = ErrorResponse.unpack(recvd)
             QMessageBox.critical(self.window, 'Error', resp.message)
             return
-        
+
         api.DeleteMessagesResponse.unpack(recvd)
 
     def read_messages_event(self):
@@ -249,50 +247,47 @@ class UserSession:
             resp = ErrorResponse.unpack(recvd)
             QMessageBox.critical(self.window, 'Error', resp.message)
             return
-        
-        api.ReadMessagesResponse.unpack(recvd)
 
+        api.ReadMessagesResponse.unpack(recvd)
 
     def start_logged_session(self):
         # Create the worker with a fresh socket
         self.message_worker = MessageUpdaterWorker(
             host=self.host,
             port=self.port,
-            username=self.username, 
+            username=self.username,
             update_interval=0.1
         )
 
         # Create the thread object
         self.message_thread = QThread()
-        
+
         # Move the worker to the thread
         self.message_worker.moveToThread(self.message_thread)
-        
+
         # When the thread starts, run the worker's main loop
         self.message_thread.started.connect(self.message_worker.run)
-        
+
         # Connect the worker's signal to your handler in the main thread
         self.message_worker.messages_received.connect(self.handle_new_messages)
-        
+
         # Start the thread
         self.message_thread.start()
 
-    
     def stop_logged_session(self):
         if self.message_worker and self.message_thread:
             # Signal the worker to stop
             self.message_worker.stop()
-            
+
             # Ask the thread to quit (once run() returns)
             self.message_thread.quit()
-            
+
             # Wait for the thread to fully exit
             self.message_thread.wait()
-            
+
             # Cleanup references
             self.message_worker = None
             self.message_thread = None
-
 
 
 class MessageUpdaterWorker(QObject):
@@ -301,7 +296,7 @@ class MessageUpdaterWorker(QObject):
     from a separate socket connection.
     """
     messages_received = pyqtSignal(list)  # emitted when new messages arrive
-    
+
     def __init__(self, host, port, username, update_interval=2, parent=None):
         """
         :param host: Server's hostname or IP address
@@ -326,7 +321,7 @@ class MessageUpdaterWorker(QObject):
         3) Emit results back to main thread
         """
         self._running = True
-        
+
         # 1) Create and connect a new socket in this worker thread.
         self._sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
         try:
@@ -335,21 +330,21 @@ class MessageUpdaterWorker(QObject):
         except ConnectionRefusedError:
             print("[MessageUpdaterWorker] Could not connect to server.")
             self._running = False
-        
+
         # 2) Start polling loop
         while self._running:
             try:
-                
+
                 request_data = api.GetMessagesRequest(self.username).pack()
                 self._sock.sendall(request_data)
-                
+
                 header, recvd = recv_resp_bytes(self._sock)
 
                 if ResponseType(header.header_type) == ResponseType.ERROR:
                     resp = ErrorResponse.unpack(recvd)
                     print(f"[MessageUpdaterWorker] Error: {resp.message}")
                     return
-                
+
                 response = api.GetMessagesResponse.unpack(recvd)
                 self.messages_received.emit(response.messages)
 
@@ -373,6 +368,7 @@ class MessageUpdaterWorker(QObject):
         """
         self._running = False
 
+
 class Login(QWidget):
 
     def __init__(self):
@@ -385,7 +381,6 @@ class Login(QWidget):
         self.password_label = QLabel("Password: ")
         self.password_label.setAlignment(Qt.AlignRight | Qt.AlignVCenter)
         self.password_label.setAutoFillBackground(True)
-        
 
         self.user_entry = QLineEdit()
         self.password_entry = QLineEdit()
@@ -419,11 +414,11 @@ class LoggedIn(QWidget):
         self.logged_in_layout.addWidget(self.sign_out_button)
 
         self.setLayout(self.logged_in_layout)
-    
+
     def update_user_label(self, username):
         self.user_label.setText(f"Logged in as: {username}")
-        
-    
+
+
 class SendMessage(QWidget):
     def __init__(self):
         super().__init__()
@@ -477,6 +472,7 @@ class ListAccount(QWidget):
         self.frame = QFrame()
         self.setLayout(self.frame_layout)
 
+
 class Central(QWidget):
     def __init__(self, send_message, list_account):
         super().__init__()
@@ -488,7 +484,6 @@ class Central(QWidget):
         self.frame_layout.addWidget(self.send_message)
         self.frame_layout.addWidget(self.list_account)
 
-        
         self.frame = QFrame()
         self.setLayout(self.frame_layout)
 
@@ -498,23 +493,24 @@ class NoLeadingZeroValidator(QIntValidator):
         # Allow empty input (to support deletion)
         if input_str == "":
             return QValidator.Intermediate, input_str, pos
-        
+
         # Prevent leading zeros unless the number is just "0"
         if input_str.startswith("0") and len(input_str) > 1:
-            return QValidator.Invalid, input_str, pos  
-        
-        # Check if input is a valid integer
+            return QValidator.Invalid, input_str, pos
+
+            # Check if input is a valid integer
         try:
             num = int(input_str)
         except ValueError:
             return QValidator.Invalid, input_str, pos
-        
+
         # Ensure it's within the valid range
         if self.bottom() <= num <= self.top():
             return QValidator.Acceptable, input_str, pos
         else:
             return QValidator.Invalid, input_str, pos
-    
+
+
 class ViewMessage(QWidget):
     def __init__(self):
         super().__init__()
@@ -528,7 +524,7 @@ class ViewMessage(QWidget):
         self.unread_count_label = QLabel("Unread Messages")
         self.num_read_label = QLabel("Number of Messages to Read: ")
         self.num_read_entry = QLineEdit()
-        self.num_read_entry.setValidator(NoLeadingZeroValidator(1,100))
+        self.num_read_entry.setValidator(NoLeadingZeroValidator(1, 100))
         self.read_button = QPushButton("Read Messages")
 
         self.unread_box = QVBoxLayout()
@@ -537,7 +533,7 @@ class ViewMessage(QWidget):
         self.unread_box.addWidget(self.num_read_label)
         self.unread_box.addWidget(self.num_read_entry)
         self.unread_box.addWidget(self.read_button)
-        
+
         self.delete_button = QPushButton("Delete Selected")
         self.unread_box.addWidget(self.delete_button)
 
@@ -549,7 +545,7 @@ class ViewMessage(QWidget):
         self.frame_layout.addWidget(self.message_list)
 
         self.setLayout(self.frame_layout)
-    
+
     def update_message_list(self, messages):
         selected_ids = set()
         for item in self.message_list.selectedItems():
@@ -593,7 +589,6 @@ class ViewMessage(QWidget):
         self.unread_count_label.setText(f"Unread Messages: {num_unread}")
 
 
-
 def create_main_frame(login, logged_in, central, messages):
     # set up the frame
     main_frame_layout = QVBoxLayout()
@@ -610,6 +605,7 @@ def create_main_frame(login, logged_in, central, messages):
     main_frame.setLayout(main_frame_layout)
 
     return main_frame
+
 
 class MainFrame(QFrame):
     def __init__(self, login, logged_in, central, view_messages):
@@ -633,23 +629,26 @@ class MainFrame(QFrame):
 
         self.setLayout(main_frame_layout)
 
+
 def create_window(main_frame):
     window = QMainWindow()
     window.setWindowTitle("Message App: Design Exercise")
     window.setCentralWidget(main_frame)
     screen_size = QDesktopWidget().screenGeometry()
-    window.resize(screen_size.width()//2, screen_size.height())
+    window.resize(screen_size.width() // 2, screen_size.height())
     return window
+
 
 def hash_string(input_string):
     return hashlib.sha256(input_string.encode()).hexdigest()
 
+
 def main():
-    parser = argparse.ArgumentParser(allow_abbrev=False, description = "GUI for the Message App Design Exercise")
+    parser = argparse.ArgumentParser(allow_abbrev=False, description="GUI for the Message App Design Exercise")
 
-    parser.add_argument("host", type = str, metavar = 'host', help = "The host on which the server is running")
+    parser.add_argument("host", type=str, metavar='host', help="The host on which the server is running")
 
-    parser.add_argument("port", type = int, metavar = 'port', help = "The port at which the server is listening")
+    parser.add_argument("port", type=int, metavar='port', help="The port at which the server is listening")
 
     parser.add_argument("--debug", action="store_true", help="Enable debug mode")
 
@@ -684,7 +683,6 @@ def main():
     else:
         view_messages.update_message_list(SAMPLE_DATA)
         user_session = UserSession(args.host, args.port, main_frame, window, True)
-
 
     # display GUI
     window.show()
