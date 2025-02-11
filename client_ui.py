@@ -3,20 +3,15 @@ import sys
 import argparse
 from sys import argv
 import time
-from datetime import datetime
 
-from PyQt5.QtWidgets import QApplication, QFrame, QLabel, QListWidget, QWidget, QListWidgetItem
-from PyQt5.QtWidgets import QMainWindow, QVBoxLayout, QDesktopWidget, QHBoxLayout, QAbstractItemView
-from PyQt5.QtWidgets import QGridLayout
+from PyQt5.QtWidgets import QApplication, QFrame, QListWidget, QWidget
+from PyQt5.QtWidgets import QMainWindow, QDesktopWidget
 from PyQt5.QtCore import Qt
-from PyQt5.QtGui import QFont, QIntValidator, QValidator
-from PyQt5.QtWidgets import QPushButton
 from PyQt5.QtWidgets import QMessageBox, QLineEdit, QTextEdit
 from PyQt5.QtCore import QObject, pyqtSignal, pyqtSlot
 from PyQt5.QtCore import QThread
 
-from config import LOCALHOST, SERVER_PORT
-from entity import Message, ResponseType, Header, ErrorResponse
+from entity import Message, ResponseType, ErrorResponse
 
 from utils import recv_resp_bytes
 
