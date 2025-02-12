@@ -208,6 +208,10 @@ class Server:
         :param request: The GetMessagesRequest object.
         """
         username = request.username
+        if username not in self.users:
+            resp = GetMessagesResponse(messages=[])
+            ctx.outbound += resp.pack()
+            return
 
         # Grab all messages associated with the user
         message_ids = self.users[username].message_ids
