@@ -112,6 +112,12 @@ class UserSession:
         username = self.mainframe.login.user_entry.text()
         password = self.mainframe.login.password_entry.text()
 
+        # Check if alphanumeric
+        if not username.isalnum():
+            QMessageBox.critical(self.window, 'Error', "Username must be alphanumeric")
+            return
+
+
         # Hash the password
         hashed_password = hash_string(password)
 
@@ -349,7 +355,7 @@ class UserSession:
 
         ids = [message.id for message in self.messages if not message.read]
 
-        num_to_read = min(num_to_read, len(self.messages))
+        num_to_read = min(num_to_read, len(ids))
 
         print("Number of messages to read:", num_to_read)
 
