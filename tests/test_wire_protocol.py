@@ -1,6 +1,10 @@
 """
-This test file primarily tests the pack() and unpack() methods for our entity and request/response classes.
-It also tests for equality checking.
+This file primarily tests the correctness of the serialization methods defined by our wire protocol.
+
+For each data, request, or response class, we test that an instance of that class can pack and unpack itself.
+Since the two operations are expected to be inverses, we assert that the resulting object is equal to the original.
+
+This function also tests that class objects whose fields are not value-equivalent are not compared as equal.
 """
 
 import uuid
@@ -21,8 +25,6 @@ def test_header():
     assert header2 == Header.unpack(header2.pack())
     assert header1 != header2
 
-    print("pack_unpack::test_header ---- PASSED")
-
 
 def test_message():
     msg1 = Message(sender="user1",
@@ -40,8 +42,6 @@ def test_message():
     assert msg2 == Message.unpack(msg2.pack())
     assert msg1 != msg2
 
-    print("pack_unpack::test_message ---- PASSED")
-
 
 def test_user():
     ids1 = {uuid.UUID(int=i) for i in range(3)}
@@ -56,14 +56,10 @@ def test_user():
 
     assert user1 != user2
 
-    print("pack_unpack::test_user ---- PASSED")
-
 
 def test_error():
     resp = ErrorResponse(message="error")
     assert resp == ErrorResponse.unpack(resp.pack())
-
-    print("pack_unpack::test_error ---- PASSED")
 
 
 def test_echo():
@@ -83,8 +79,6 @@ def test_echo():
     assert resp2 == EchoResponse.unpack(resp2.pack())
     assert resp1 != resp2
 
-    print("pack_unpack::test_echo ---- PASSED")
-
 
 def test_auth():
     # Request
@@ -102,8 +96,6 @@ def test_auth():
     # Response
     resp = AuthResponse()
     assert resp == AuthResponse.unpack(resp.pack())
-
-    print("pack_unpack::test_auth ---- PASSED")
 
 
 def test_get_messages():
@@ -132,8 +124,6 @@ def test_get_messages():
     assert resp2 == GetMessagesResponse.unpack(resp2.pack())
     assert resp1 != resp2
 
-    print("pack_unpack::test_get_messages ---- PASSED")
-
 
 def test_list_users():
     # Request
@@ -151,8 +141,6 @@ def test_list_users():
     assert resp1 == ListUsersResponse.unpack(resp1.pack())
     assert resp2 == ListUsersResponse.unpack(resp2.pack())
     assert resp1 != resp2
-
-    print("pack_unpack::test_list_users ---- PASSED")
 
 
 def test_send_message():
@@ -179,8 +167,6 @@ def test_send_message():
     resp = SendMessageResponse()
     assert resp == SendMessageResponse.unpack(resp.pack())
 
-    print("pack_unpack::test_send_message: ---- PASSED")
-
 
 def test_read_messages():
     # Request
@@ -197,8 +183,6 @@ def test_read_messages():
     # Response
     resp = ReadMessagesResponse()
     assert resp == ReadMessagesResponse.unpack(resp.pack())
-
-    print("pack_unpack::test_read_messages ---- PASSED")
 
 
 def test_delete_messages():
@@ -217,8 +201,6 @@ def test_delete_messages():
     resp = DeleteMessagesResponse()
     assert resp == DeleteMessagesResponse.unpack(resp.pack())
 
-    print("pack_unpack::test_delete_messages: ---- PASSED")
-
 
 def test_delete_user():
     # Request
@@ -232,8 +214,6 @@ def test_delete_user():
     # Response
     resp = DeleteUserResponse()
     assert resp == DeleteUserResponse.unpack(resp.pack())
-
-    print("pack_unpack::test_delete_user ---- PASSED")
 
 
 if __name__ == '__main__':

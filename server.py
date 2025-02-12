@@ -11,6 +11,8 @@ from utils import get_ipaddr, parse_request
 
 
 class Server:
+    """Main server class that manages users and message state for all clients."""
+
     def __init__(self):
         # Initialize storage for users and messages
         self.users: dict[str, User] = {}
@@ -46,6 +48,7 @@ class Server:
     def accept_wrapper(self, key: selectors.SelectorKey):
         """
         Accept a new client connection and register it for reading.
+
         :param key: Select key.
         """
         sock = key.fileobj
@@ -65,7 +68,14 @@ class Server:
 
     def service_connection(self, key: selectors.SelectorKey, mask: int):
         """
-        Serve the connection.
+        This function serves a connection.
+
+        If the socket is receiving a request, it will:
+        1. Read a fixed-size protocol header.
+        2. Read a request whose size is given by the protocol header.
+        3. Parse the request (whose type is given by the protocol header).
+        4. Pass the request to the request handler.
+
         :param key: Connection key.
         :param mask: Mask for selecting events.
         """
@@ -113,6 +123,14 @@ class Server:
                 ctx.outbound = ctx.outbound[sent:]
 
     def handle_request(self, ctx: types.SimpleNamespace, request: Request):
+        """
+        This function is called whenever a request is received.
+
+        It forwards the request to the appropriate handler based on the request type.
+
+        :param ctx: The connection context of the request.
+        :param request: The request object.
+        """
         match request:
             case EchoRequest():
                 self.handle_echo(ctx, request)
@@ -140,6 +158,21 @@ class Server:
         ctx.outbound += resp.pack()
 
     def handle_auth(self, ctx: types.SimpleNamespace, request: AuthRequest):
+        """
+        This function handles all authentication requests: users creating an account or logging in.
+
+        The function returns three possible errors back to the client:
+        1. Attempting to create an account with a username that already exists.
+        2. Attempting to log into an account that doesn't exist.
+        3. Attempting to log into an account with the wrong password.
+
+        If there was an error, the server sends an ErrorResponse() object with a description to the client.
+        On success, the server sends a blank AuthResponse() object to the client.
+
+        :param ctx: The connection context of the request.
+        :param request: The authentication request object.
+        :return: None
+        """
         username, password = request.username, request.password
         match request.action_type:
             case AuthRequest.ActionType.CREATE_ACCOUNT:
@@ -165,6 +198,14 @@ class Server:
         ctx.outbound += resp.pack()
 
     def handle_get_messages(self, ctx: types.SimpleNamespace, request: GetMessagesRequest):
+        """
+        This function handles all get messages requests.
+
+        It responds with a list of non-deleted messages that were sent to the requester.
+
+        :param ctx: The connection context of the request.
+        :param request: The get messages request object.
+        """
         username = request.username
 
         # Grab all messages associated with the user
@@ -176,6 +217,14 @@ class Server:
         ctx.outbound += resp.pack()
 
     def handle_list_users(self, ctx: types.SimpleNamespace, request: ListUsersRequest):
+        """
+        This function handles all list users requests.
+
+        It responds with a list of all current users whose usernames match the provided wildcard pattern.
+
+        :param ctx: The connection context of the request.
+        :param request: The list users request object.
+        """
         username, pattern = request.username, request.pattern
 
         matches = [username for username in self.users if fnmatch(username, pattern)]
@@ -187,6 +236,16 @@ class Server:
         ctx.outbound += resp.pack()
 
     def handle_send_message(self, ctx: types.SimpleNamespace, request: SendMessageRequest):
+        """
+        This function handles all send messages requests.
+
+        It inserts the message into the map of message IDs to message objects.
+        Then it inserts the message ID into the receiver's message inbox.
+        On success, it responds with a blank SendMessageResponse() object.
+
+        :param ctx:
+        :param request:
+        """
         username, message = request.username, request.message
 
         # Assert that the message does not already exist and the request user matches the sender
@@ -209,6 +268,17 @@ class Server:
         ctx.outbound += resp.pack()
 
     def handle_read_messages(self, ctx: types.SimpleNamespace, request: ReadMessagesRequest):
+        """
+        This function handles all read messages requests.
+
+        It iterates over a list of message IDs.
+        For each message ID, it gets the message object corresponding to the message ID.
+        It sets the read flag of the message to true.
+        On success, it responds with a blank ReadMessageResponse() object.
+
+        :param ctx:
+        :param request:
+        """
         username, message_ids = request.username, request.message_ids
 
         # Set the read flag for each message in the request
@@ -228,6 +298,17 @@ class Server:
         ctx.outbound += resp.pack()
 
     def handle_delete_messages(self, ctx: types.SimpleNamespace, request: DeleteMessagesRequest):
+        """
+        This function handles all delete messages requests.
+
+        It iterates over a list of message IDs.
+        For each message ID, it gets the message object corresponding to the message ID.
+        It deletes the message object as well as the ID from the receiver's inbox.
+        On success, it responds with a blank DeleteMessagesResponse() object.
+
+        :param ctx: The connection context of the request.
+        :param request: The delete messages request object.
+        """
         username, message_ids = request.username, request.message_ids
 
         # Get the receiver
@@ -254,6 +335,17 @@ class Server:
         ctx.outbound += resp.pack()
 
     def handle_delete_user(self, ctx: types.SimpleNamespace, request: DeleteUserRequest):
+        """
+        This function handles all delete user requests.
+
+        It iterates over the list of message IDs in the deleted user's inbox.
+        For each message ID, it erases the corresponding message object.
+        The user is then removed from the server's state.
+        On success, it responds with a blank DeleteUserResponse() object.
+
+        :param ctx: The connection context of the request.
+        :param request: The delete user request object.
+        """
         username = request.username
 
         # Get the user
@@ -267,25 +359,20 @@ class Server:
         # Delete the user
         del self.users[username]
 
-        # Update the context
-        if ctx.username == username:
-            ctx.username = None
-
         # Send the response
         resp = DeleteUserResponse()
         ctx.outbound += resp.pack()
 
     def log(self):
+        """Utility function that logs the state of the server."""
         print("\n-------------------------------- SERVER STATE --------------------------------")
-        print(f"Users: {self.users}")
-        print(f"Messages: {self.messages}")
+        print(f"USERS: {self.users}")
+        print(f"MESSAGES: {self.messages}")
         print("------------------------------------------------------------------------------\n")
 
 
 def main():
-    """
-    Entry point for server application.
-    """
+    """Entry point for server application."""
 
     if not PUBLIC_STATUS:
         host = LOCALHOST

@@ -8,13 +8,13 @@ from entity import *
 
 
 class GetMessagesRequest(BaseModel):
-    """
-    Get messages request.
-    :var username: The username to get messages for.
-    """
     username: str
 
     def pack(self):
+        """
+        Serialization format:
+            <HEADER> <USERNAME_LEN> <USERNAME_BYTES> <LIST[MESSAGE_ID]>
+        """
         if PROTOCOL_TYPE != "json":
             # Encode the data
             username_bytes = self.username.encode("utf-8")
@@ -71,13 +71,13 @@ class GetMessagesRequest(BaseModel):
 
 
 class GetMessagesResponse(BaseModel):
-    """
-    Get messages response.
-    :var messages: The messages retrieved
-    """
     messages: list[Message]
 
     def pack(self) -> bytes:
+        """
+        Serialization format:
+            <HEADER> <LIST[MESSAGE]>
+        """
         if PROTOCOL_TYPE != "json":
             # Pack the data
             data = pack_messages(self.messages)

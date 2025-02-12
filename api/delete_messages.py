@@ -9,15 +9,14 @@ from entity import *
 
 
 class DeleteMessagesRequest(BaseModel):
-    """
-    Delete message request.
-    :var username: The username of the user trying to delete.
-    :var message_ids: The list of IDs of the messages to delete.
-    """
     username: str
     message_ids: list[uuid.UUID]
 
     def pack(self) -> bytes:
+        """
+        Serialization format:
+            <HEADER> <USERNAME_LEN> <USERNAME_BYTES> <MESSAGE_IDS>
+        """
         if PROTOCOL_TYPE != "json":
             # Encode the data
             username_bytes = self.username.encode("utf-8")

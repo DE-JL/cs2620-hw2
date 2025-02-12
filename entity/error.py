@@ -5,13 +5,13 @@ from config import PROTOCOL_TYPE
 
 
 class ErrorResponse(BaseModel):
-    """
-    Error response.
-    :var message: The descriptive error message.
-    """
     message: str
 
     def pack(self) -> bytes:
+        """
+        Serialization format:
+            <MESSAGE_LEN> <MESSAGE>
+        """
         if PROTOCOL_TYPE != "json":
             # Pack the data
             data = self.message.encode("utf-8")

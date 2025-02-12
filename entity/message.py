@@ -19,6 +19,12 @@ class Message(BaseModel):
         self.read = True
 
     def pack(self) -> bytes:
+        """
+        Serialization format:
+            <HEADER> <SENDER_LEN> <RECEIVER_LEN> <BODY_LEN>...
+            ...<SENDER_BYTES> <RECEIVER_BYTES> <BODY_BYTES>...
+            ...<MESSAGE_ID> <TIMESTAMP>
+        """
         if PROTOCOL_TYPE != "json":
             # Encode the data
             sender_bytes = self.sender.encode("utf-8")

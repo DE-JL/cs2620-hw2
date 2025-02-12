@@ -7,14 +7,14 @@ from entity import *
 
 
 class SendMessageRequest(BaseModel):
-    """
-    Send message request.
-    :var message: Message object.
-    """
     username: str
     message: Message
 
     def pack(self):
+        """
+        Serialization format:
+            <HEADER> <USERNAME_LEN> <USERNAME_BYTES> <MESSAGE>
+        """
         if PROTOCOL_TYPE != "json":
             # Encode the data
             username_bytes = self.username.encode("utf-8")
@@ -75,10 +75,6 @@ class SendMessageRequest(BaseModel):
 
 
 class SendMessageResponse(BaseModel):
-    """
-    Send message response.
-    """
-
     @staticmethod
     def pack() -> bytes:
         return Header(header_type=ResponseType.SEND_MESSAGE.value).pack()

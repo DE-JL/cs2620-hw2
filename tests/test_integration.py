@@ -1,3 +1,14 @@
+"""
+This file tests the integration of the server and the client with PyTest fixtures.
+
+A server process is initialized and kept alive for the duration of all test cases.
+For each test case, a client process is started and connection is established between the server and the client.
+
+Each test case consists of a client submitting a variety of requests.
+Every request will have a hardcoded expectation response object.
+The test case asserts that all responses match their expectations.
+"""
+
 import socket
 import uuid
 import pytest
@@ -28,16 +39,17 @@ def start_server():
             print("Server is ready!")
             break
         except (ConnectionRefusedError, OSError):
-            time.sleep(0.5)
+            time.sleep(1)
     else:
         server_process.kill()
         pytest.exit("Server failed to start within timeout.")
 
-    yield  # Tests run after this
+    # Tests run after this
+    yield
 
     print("\nStopping server...")
     server_process.terminate()
-    server_process.wait()  # Ensure process exits
+    server_process.wait()
     print("Server stopped.")
 
 
@@ -115,8 +127,6 @@ def test_auth(sock: socket.socket):
 
     assert resp == exp
     # ========================================================================================== #
-
-    print("test_server_logic::test_auth ---- PASSED")
 
 
 def test_send_and_get(sock: socket.socket):
@@ -206,8 +216,6 @@ def test_send_and_get(sock: socket.socket):
     assert resp == exp
     # ========================================================================================== #
 
-    print("test_server_logic::test_send_and_get ---- PASSED")
-
 
 def test_list_users(sock: socket.socket):
     """
@@ -234,8 +242,6 @@ def test_list_users(sock: socket.socket):
 
     assert resp == exp
     # ========================================================================================== #
-
-    print("test_server_logic::test_list_users ---- PASSED")
 
 
 def test_read_messages(sock: socket.socket):
@@ -280,8 +286,6 @@ def test_read_messages(sock: socket.socket):
         assert message.read
     # ========================================================================================== #
 
-    print("test_server_logic::test_read_messages ---- PASSED")
-
 
 def test_delete_messages(sock: socket.socket):
     """
@@ -291,7 +295,6 @@ def test_delete_messages(sock: socket.socket):
     3. Get the messages for user2 and assert that the inbox is empty.
     """
     # ========================================== TEST ========================================== #
-    print("test_delete_messages --------------- starting")
     req = GetMessagesRequest(username="user2")
 
     sock.sendall(req.pack())
@@ -321,8 +324,6 @@ def test_delete_messages(sock: socket.socket):
 
     assert resp == exp
     # ========================================================================================== #
-
-    print("test_server_logic::test_delete_messages ---- PASSED")
 
 
 def test_delete_user(sock: socket.socket):
@@ -400,14 +401,11 @@ def test_delete_user(sock: socket.socket):
     assert resp == exp
     # ========================================================================================== #
 
-    print("test_server_logic::test_delete_user ---- PASSED")
-
 
 if __name__ == '__main__':
     # Connect to the server
     client_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
     client_socket.connect((LOCALHOST, SERVER_PORT))
-    print(f"Client connected to {LOCALHOST}:{SERVER_PORT}")
 
     # Run tests (the order matters!)
     test_auth(client_socket)

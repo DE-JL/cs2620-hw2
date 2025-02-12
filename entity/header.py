@@ -4,8 +4,6 @@ from enum import Enum
 from pydantic import BaseModel, Field
 from typing import ClassVar
 
-from config import PROTOCOL_TYPE
-
 
 class RequestType(Enum):
     ECHO = 0
@@ -38,11 +36,7 @@ class DataType(Enum):
 
 class Header(BaseModel):
     """
-    Header for wire protocol.
-    :cvar FORMAT: Predefined protocol header format.
-    :cvar SIZE: Predefined protocol header size.
-    :var header_type: Identifier for different types of objects.
-    :var payload_size: The size of the following data payload in bytes.
+    Header object class: the fundamental building block of the wire protocol.
     """
 
     FORMAT: ClassVar[str] = "!B I"
@@ -52,6 +46,10 @@ class Header(BaseModel):
     payload_size: int = Field(default=0)
 
     def pack(self) -> bytes:
+        """
+        Serialization format:
+            <HEADER_TYPE> <PAYLOAD_SIZE>
+        """
         return struct.pack(self.FORMAT, self.header_type, self.payload_size)
 
     @staticmethod

@@ -9,14 +9,14 @@ from entity import *
 
 
 class ReadMessagesRequest(BaseModel):
-    """
-    Read messages request.
-    :var message_ids: The IDs of the messages to be marked as read.
-    """
     username: str
     message_ids: list[uuid.UUID]
 
     def pack(self):
+        """
+        Serialization format:
+            <HEADER> <USERNAME_LEN> <USERNAME_BYTES> <LIST[MESSAGE_ID]>
+        """
         if PROTOCOL_TYPE != "json":
             # Encode the data
             username_bytes = self.username.encode("utf-8")
@@ -77,10 +77,6 @@ class ReadMessagesRequest(BaseModel):
 
 
 class ReadMessagesResponse(BaseModel):
-    """
-    Read messages response.
-    """
-
     @staticmethod
     def pack() -> bytes:
         return Header(header_type=ResponseType.READ_MESSAGES.value).pack()

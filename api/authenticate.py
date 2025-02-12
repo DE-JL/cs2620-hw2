@@ -8,14 +8,6 @@ from entity import *
 
 
 class AuthRequest(BaseModel):
-    """
-    Authenticate request.
-    :type Auth.ActionType: An enum for the types of possible authentication actions.
-    :var action_type: The realized action type.
-    :var username: The username of the user attempting to authenticate.
-    :var password: The password of the user attempting to authenticate.
-    """
-
     class ActionType(Enum):
         CREATE_ACCOUNT = 0
         LOGIN = 1
@@ -25,6 +17,10 @@ class AuthRequest(BaseModel):
     password: str
 
     def pack(self):
+        """
+        Serialization format:
+            <HEADER> <USERNAME_LEN> <PASSWORD_LEN> <USERNAME_BYTES> <PASSWORD_BYTES>
+        """
         if PROTOCOL_TYPE != "json":
             # Encode the data
             username_bytes = self.username.encode("utf-8")

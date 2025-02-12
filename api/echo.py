@@ -5,13 +5,13 @@ from entity import *
 
 
 class EchoRequest(BaseModel):
-    """
-    Echo request.
-    :var string: The echo request string.
-    """
     string: str
 
     def pack(self) -> bytes:
+        """
+        Serialization format:
+            <HEADER> <STRING_LEN> <STRING_BYTES>
+        """
         if PROTOCOL_TYPE != "json":
             # Encode the data
             data = self.string.encode("utf-8")
@@ -55,10 +55,6 @@ class EchoRequest(BaseModel):
 
 
 class EchoResponse(BaseModel):
-    """
-    Echo response.
-    :var string: The echo response string.
-    """
     string: str
 
     def pack(self) -> bytes:

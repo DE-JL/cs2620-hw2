@@ -7,13 +7,13 @@ from entity import *
 
 
 class DeleteUserRequest(BaseModel):
-    """
-    Delete user request.
-    :var username: The username of the user to delete.
-    """
     username: str
 
     def pack(self) -> bytes:
+        """
+        Serialization format:
+            <HEADER> <USERNAME_LEN> <USERNAME_BYTES>
+        """
         if PROTOCOL_TYPE != "json":
             # Encode the data
             username_bytes = self.username.encode("utf-8")
@@ -70,10 +70,6 @@ class DeleteUserRequest(BaseModel):
 
 
 class DeleteUserResponse(BaseModel):
-    """
-    Delete user response.
-    """
-
     @staticmethod
     def pack() -> bytes:
         return Header(header_type=ResponseType.DELETE_USER.value).pack()

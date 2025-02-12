@@ -5,6 +5,10 @@ from entity import *
 
 
 def pack_messages(messages: list[Message]) -> bytes:
+    """
+    Serialization format:
+        <HEADER> <LIST_LEN> <MESSAGE1_LEN> <MESSAGE1_BYTES> ...
+    """
     # Pack the length
     data = struct.pack("!I", len(messages))
 
@@ -48,6 +52,10 @@ def unpack_messages(data: bytes) -> list[Message]:
 
 
 def pack_strings(strings: list[str]) -> bytes:
+    """
+    Serialization format:
+        <HEADER> <LIST_LEN> <STRING1_LEN> <STRING1_BYTES> ...
+    """
     # Pack the length
     data = struct.pack("!I", len(strings))
 
@@ -92,6 +100,10 @@ def unpack_strings(data: bytes) -> list[str]:
 
 
 def pack_uuids(uuids: list[uuid.UUID]) -> bytes:
+    """
+    Serialization format:
+        <HEADER> <LIST_LEN> <MESSAGE_UUID1> ...
+    """
     # Pack the length
     data = struct.pack("!I", len(uuids))
 

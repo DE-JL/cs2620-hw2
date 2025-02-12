@@ -8,15 +8,14 @@ from entity import *
 
 
 class ListUsersRequest(BaseModel):
-    """
-    List users request.
-    :var username: The username of the user requesting accounts matching pattern.
-    :var pattern: The regex pattern to match.
-    """
     username: str
     pattern: str
 
     def pack(self):
+        """
+        Serialization format:
+            <HEADER> <USERNAME_LEN> <PATTERN_LEN> <USERNAME_BYTES> <PATTERN_BYTES>
+        """
         if PROTOCOL_TYPE != "json":
             # Encode the data
             username_bytes = self.username.encode("utf-8")
@@ -78,13 +77,13 @@ class ListUsersRequest(BaseModel):
 
 
 class ListUsersResponse(BaseModel):
-    """
-    List users response.
-    :var usernames: The list of users matching the pattern.
-    """
     usernames: list[str]
 
     def pack(self):
+        """
+        Serialization format:
+            <HEADER> <LIST[STR]>
+        """
         if PROTOCOL_TYPE != "json":
             # Pack the data
             data = pack_strings(self.usernames)
