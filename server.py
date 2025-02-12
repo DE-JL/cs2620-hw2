@@ -170,7 +170,7 @@ class Server:
         On success, the server sends a blank AuthResponse() object to the client.
 
         :param ctx: The connection context of the request.
-        :param request: The authentication request object.
+        :param request: The AuthRequest object.
         :return: None
         """
         username, password = request.username, request.password
@@ -204,7 +204,7 @@ class Server:
         It responds with a list of non-deleted messages that were sent to the requester.
 
         :param ctx: The connection context of the request.
-        :param request: The get messages request object.
+        :param request: The GetMessagesRequest object.
         """
         username = request.username
 
@@ -223,7 +223,7 @@ class Server:
         It responds with a list of all current users whose usernames match the provided wildcard pattern.
 
         :param ctx: The connection context of the request.
-        :param request: The list users request object.
+        :param request: The ListUsersRequest object.
         """
         username, pattern = request.username, request.pattern
 
@@ -276,8 +276,8 @@ class Server:
         It sets the read flag of the message to true.
         On success, it responds with a blank ReadMessageResponse() object.
 
-        :param ctx:
-        :param request:
+        :param ctx: The connection context of the request.
+        :param request: The ReadMessagesRequest object.
         """
         username, message_ids = request.username, request.message_ids
 
@@ -307,7 +307,7 @@ class Server:
         On success, it responds with a blank DeleteMessagesResponse() object.
 
         :param ctx: The connection context of the request.
-        :param request: The delete messages request object.
+        :param request: The DeleteMessagesRequest object.
         """
         username, message_ids = request.username, request.message_ids
 
@@ -344,7 +344,7 @@ class Server:
         On success, it responds with a blank DeleteUserResponse() object.
 
         :param ctx: The connection context of the request.
-        :param request: The delete user request object.
+        :param request: The DeleteUserRequest object.
         """
         username = request.username
 
