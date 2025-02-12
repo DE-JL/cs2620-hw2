@@ -107,9 +107,10 @@ class Server:
             recvd += sock.recv(header.payload_size, socket.MSG_WAITALL)
 
             # Parse the request
-            request = parse_request(RequestType(header.header_type), recvd)
+            request_type = RequestType(header.header_type)
+            request = parse_request(request_type, recvd)
             if DEBUG:
-                print(f"Received request: {request}")
+                print(f"Received request {request_type}: {request}")
 
             # Handle the request
             self.handle_request(ctx, request)
@@ -161,7 +162,7 @@ class Server:
         """
         This function handles all authentication requests: users creating an account or logging in.
 
-        The function returns three possible errors back to the client:
+        The function returns three possible errors to the client:
         1. Attempting to create an account with a username that already exists.
         2. Attempting to log into an account that doesn't exist.
         3. Attempting to log into an account with the wrong password.
