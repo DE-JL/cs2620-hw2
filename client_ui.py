@@ -541,7 +541,7 @@ def create_window(mainframe: MainFrame) -> QMainWindow:
     window.setWindowTitle("Message App: Design Exercise")
     window.setCentralWidget(mainframe)
     screen_size = QDesktopWidget().screenGeometry()
-    window.resize(screen_size.width() // 2, screen_size.height() // 2)
+    window.resize(int(3*screen_size.width()/4), screen_size.height() // 2)
     return window
 
 
