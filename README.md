@@ -14,7 +14,8 @@ To run the server and UI Client, do the following:
     - `source venv/bin/activate`
     - `pip install -r requirements.txt`
 2. Change config settings in `config/config.yaml`
-    - If you'd like to run the client UI and the server on separate computers, set `network.public_status` to `true`. Ensure the client and the server computers are on the same network.
+    - If you would like to run the client UI and the server on separate computers, set `network.public_status` to `true`.
+      Ensure the client and the server computers are on the same local network. On startup, the server will print its IP address and port.
     - To toggle the wire protocol implementation between JSON and custom, set `protocol_type` to `json` or `custom`.
 2. Open a terminal and run the server: `python server.py`
     - If you'd like to run the client UI and the server on separate computers, note the host name and port name in the console output.
