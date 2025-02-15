@@ -17,6 +17,8 @@ class Server:
         # Initialize storage for users and messages
         self.users: dict[str, User] = {}
         self.messages: dict[uuid.UUID, Message] = {}
+        self.inbound_volume: int = 0
+        self.outbound_volume: int = 0
 
         # Create server socket
         self.sel = selectors.DefaultSelector()
@@ -105,6 +107,7 @@ class Server:
             # Unpack the header and receive the payload
             header = Header.unpack(recvd)
             recvd += sock.recv(header.payload_size, socket.MSG_WAITALL)
+            self.inbound_volume += len(recvd)
 
             # Parse the request
             request_type = RequestType(header.header_type)
@@ -122,6 +125,7 @@ class Server:
             if ctx.outbound:
                 sent = sock.send(ctx.outbound)
                 ctx.outbound = ctx.outbound[sent:]
+                self.outbound_volume += sent
 
     def handle_request(self, ctx: types.SimpleNamespace, request: Request):
         """
@@ -373,6 +377,8 @@ class Server:
         print("\n-------------------------------- SERVER STATE --------------------------------")
         print(f"USERS: {self.users}")
         print(f"MESSAGES: {self.messages}")
+        print(f"TOTAL TRAFFIC (INBOUND): {self.inbound_volume} bytes")
+        print(f"TOTAL TRAFFIC (OUTBOUND): {self.outbound_volume} bytes")
         print("------------------------------------------------------------------------------\n")
 
 
