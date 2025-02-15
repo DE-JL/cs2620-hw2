@@ -115,6 +115,35 @@ class Message(BaseModel):
         return header.pack() + data
 ```
 
+#### Custom Serialization vs. JSON
+We've attached the traffic volume over the wire in our debug logs to check the in-house vs. JSON differential.
+The following two blocks are the server's final debug logs when running the _integration tests_ (which submit a bunch of queries)
+with the custom serialization protocol and JSON, respectively.
+
+##### Custom
+```
+-------------------------------- SERVER STATE (CUSTOM) --------------------------------
+USERS: {'user1': User(username='user1', password='password', message_ids=set())}
+MESSAGES: {}
+TOTAL TRAFFIC (INBOUND): 856 bytes
+TOTAL TRAFFIC (OUTBOUND): 1077 bytes
+------------------------------------------------------------------------------
+```
+
+##### JSON
+```
+-------------------------------- SERVER STATE (JSON) ----------------------------------
+USERS: {'user1': User(username='user1', password='password', message_ids=set())}
+MESSAGES: {}
+TOTAL TRAFFIC (INBOUND): 1768 bytes
+TOTAL TRAFFIC (OUTBOUND): 1674 bytes
+---------------------------------------------------------------------------------------
+```
+
+Evidently, JSON almost _doubles_ the number of bytes sent over the network.
+Furthermore, this is only over two clients and a very small number (~20) of queries.
+As the application scales, we will want to have more compact serialization protocols if the network becomes a bottleneck.
+
 ### Execution
 Since we are not persisting chat information to disk, all information regarding users and messages is stored in memory by the server.
 
