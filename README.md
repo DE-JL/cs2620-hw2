@@ -116,8 +116,8 @@ class Message(BaseModel):
 ```
 
 #### Custom Serialization vs. JSON
-We've attached the traffic volume over the wire in our debug logs to check the in-house vs. JSON differential.
-The following two blocks are the server's final debug logs when running the _integration tests_ (which submit a bunch of queries)
+We've attached the server traffic volume (both sent and received) in our debug logs to check the size of the messages under different serialization protocols.
+The following two blocks are the server's final debug statements when running the _integration tests_ (which submit a bunch of queries)
 with the custom serialization protocol and JSON, respectively.
 
 ##### Custom
