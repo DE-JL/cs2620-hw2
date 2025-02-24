@@ -1,10 +1,12 @@
 import uuid
+
+from concurrent import futures
 from fnmatch import fnmatch
 
-from config import DEBUG
+from chat_pb2 import *
+from chat_pb2_grpc import *
+from config import DEBUG, SERVER_PORT
 from entity import User
-from generated.chat_pb2 import *
-from generated.chat_pb2_grpc import *
 
 
 class ChatServiceServicer(ChatServerServicer):
@@ -16,6 +18,10 @@ class ChatServiceServicer(ChatServerServicer):
         self.messages: dict[uuid.UUID, Message] = {}
         self.inbound_volume: int = 0
         self.outbound_volume: int = 0
+
+    def Echo(self, request: EchoRequest, context: grpc.ServicerContext) -> EchoResponse:
+        return EchoResponse(status=Status.SUCCESS,
+                            message=request.message)
 
     def Authenticate(self, request: AuthRequest, context: grpc.ServicerContext) -> AuthResponse:
         """
@@ -44,10 +50,10 @@ class ChatServiceServicer(ChatServerServicer):
                     self.users[username] = User(username=username, password=password)
             case AuthRequest.ActionType.LOGIN:
                 if username not in self.users:
-                    resp = AuthResponse(status=Status.ERROR,
+                    return AuthResponse(status=Status.ERROR,
                                         error_message=f"Login failed: user \"{username}\" does not exist.")
                 elif password != self.users[username].password:
-                    resp = AuthResponse(status=Status.ERROR,
+                    return AuthResponse(status=Status.ERROR,
                                         error_message=f"Login failed: incorrect password.")
             case _:
                 print("Unknown AuthRequest action type.")
@@ -238,8 +244,16 @@ class ChatServiceServicer(ChatServerServicer):
 
 
 def main():
-    pass
+    server = grpc.server(futures.ThreadPoolExecutor(max_workers=1))
+    add_ChatServerServicer_to_server(ChatServiceServicer(), server)
+
+    server_addr = f"localhost:{SERVER_PORT}"
+    server.add_insecure_port(server_addr)
+    server.start()
+
+    print(f"Server listening on {server_addr}")
+    server.wait_for_termination()
 
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     main()

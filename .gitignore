@@ -1,5 +1,6 @@
 # Protocol buffer generated code
-generated/
+*_pb2.*
+*_pb2_grpc.*
 
 # Byte-compiled / optimized / DLL files
 __pycache__/

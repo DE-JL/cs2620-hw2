@@ -1,17 +1,18 @@
 /**
  *  Usage:
- *      mkdir -p generated && python -m grpc_tools.protoc \
- *      -I=protos \
- *      --python_out=generated \
- *      --pyi_out=generated \
- *      --grpc_python_out=generated \
- *      chat.proto
+ *      python -m grpc_tools.protoc -I=protos \
+ *      --python_out=. \
+ *      --pyi_out=. \
+ *      --grpc_python_out=. \
+ *      protos/chat.proto
  */
 
 syntax = "proto3";
 
 /* Chat server interface */
 service ChatServer {
+    rpc Echo(EchoRequest) returns (EchoResponse) {}
+
     rpc Authenticate(AuthRequest) returns (AuthResponse) {}
 
     rpc GetMessages(GetMessagesRequest) returns (GetMessagesResponse) {}
@@ -25,6 +26,17 @@ service ChatServer {
     rpc DeleteMessages(DeleteMessagesRequest) returns (DeleteMessagesResponse) {}
 
     rpc DeleteUser(DeleteUserRequest) returns (DeleteUserResponse) {}
+}
+
+/* Echo */
+message EchoRequest {
+    Status status = 1;
+    string message = 2;
+}
+
+message EchoResponse {
+    Status status = 1;
+    string message = 2;
 }
 
 
