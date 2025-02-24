@@ -1,5 +1,5 @@
-keys/
-
+# Protocol buffer generated code
+generated/
 
 # Byte-compiled / optimized / DLL files
 __pycache__/
