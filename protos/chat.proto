@@ -1,11 +1,11 @@
 /**
-    Usage:
-        mkdir -p generated && python -m grpc_tools.protoc \
-        -I=protos \
-        --python_out=generated \
-        --pyi_out=generated \
-        --grpc_python_out=generated \
-        chat.proto
+ *  Usage:
+ *      mkdir -p generated && python -m grpc_tools.protoc \
+ *      -I=protos \
+ *      --python_out=generated \
+ *      --pyi_out=generated \
+ *      --grpc_python_out=generated \
+ *      chat.proto
  */
 
 syntax = "proto3";
