@@ -86,7 +86,7 @@ message SendMessageResponse {
 /* Read messages */
 message ReadMessagesRequest {
     string username = 1;
-    repeated bytes ids = 2;
+    repeated bytes message_ids = 2;
 }
 
 message ReadMessagesResponse {
@@ -98,7 +98,7 @@ message ReadMessagesResponse {
 /* Delete messages */
 message DeleteMessagesRequest {
     string username = 1;
-    repeated bytes ids = 2;
+    repeated bytes message_ids = 2;
 }
 
 message DeleteMessagesResponse {
@@ -132,4 +132,5 @@ message Message {
     string recipient = 3;
     string body = 4;
     double timestamp = 5;
+    bool read = 6;
 }
