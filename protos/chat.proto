@@ -9,6 +9,8 @@
 
 syntax = "proto3";
 
+package chat;
+
 /* Chat server interface */
 service ChatServer {
     rpc Echo(EchoRequest) returns (EchoResponse) {}

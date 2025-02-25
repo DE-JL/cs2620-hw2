@@ -1,26 +1,21 @@
 import argparse
 import hashlib
-import socket
+import uuid
 import time
 
+from PyQt5.QtCore import Qt
 from PyQt5.QtWidgets import QApplication, QFrame, QListWidget, QWidget
 from PyQt5.QtWidgets import QMainWindow, QDesktopWidget
-from PyQt5.QtCore import Qt
 from PyQt5.QtWidgets import QMessageBox, QLineEdit, QTextEdit
 from PyQt5.QtCore import QObject, pyqtSignal, pyqtSlot
 from PyQt5.QtCore import QThread
 from sys import argv
 
-import ui
-
 from config import GUI_REFRESH_RATE
-from entity import Message
+from protos.chat_pb2 import *
+from protos.chat_pb2_grpc import *
 from ui import MainFrame
-import uuid
-import time
 
-from chat_pb2 import *
-from chat_pb2_grpc import *
 
 class UserSession:
     """
@@ -35,7 +30,6 @@ class UserSession:
         :param port: The port number to connect to the server on
         :param mainframe: The main application frame
         :param window: The main application window
-        :param debug: Whether to run the client in debug mode
         """
         self.mainframe = mainframe
         self.window = window
@@ -107,7 +101,7 @@ class UserSession:
         if not username.isalnum():
             QMessageBox.critical(self.window, 'Error', "Username must be alphanumeric")
             return
-        
+
         # Hash the password
         hashed_password = hash_string(password)
 
@@ -172,14 +166,13 @@ class UserSession:
         user_to_delete = self.username
 
         self.sign_out()
-        
+
         response = self.stub.DeleteUser(DeleteUserRequest(username=user_to_delete))
 
         if response.status == Status.ERROR:
             QMessageBox.critical(self.window, 'Error', response.error_message)
             return
         print("Account deleted")
-        
 
     def list_account_event(self):
         """
@@ -201,7 +194,7 @@ class UserSession:
         if response.status == Status.ERROR:
             QMessageBox.critical(self.window, 'Error', response.error_message)
             return
-        
+
         self.mainframe.central.list_account.account_list.clear()
         for idx, user in enumerate(response.usernames):
             self.mainframe.central.list_account.account_list.insertItem(idx, user)
@@ -222,12 +215,14 @@ class UserSession:
         recipient = self.mainframe.central.send_message.recipient_entry.text()
         message_body = self.mainframe.central.send_message.message_text.toPlainText()
 
-        id = uuid.uuid4().bytes
-        timestamp = time.time()
+        message = Message(id=uuid.uuid4().bytes,
+                          sender=self.username,
+                          recipient=recipient,
+                          body=message_body,
+                          timestamp=time.time())
+        req = SendMessageRequest(username=self.username, message=message)
 
-        message = Message(id=id, sender=self.username, recipient=recipient, body=message_body,timestamp=timestamp, read=False)
-
-        response = self.stub.SendMessage(SendMessageRequest(username=self.username, message=message))
+        response = self.stub.SendMessage(req)
 
         if response.status == Status.ERROR:
             QMessageBox.critical(self.window, 'Error', response.error_message)
@@ -279,7 +274,6 @@ class UserSession:
         if response.status == Status.ERROR:
             QMessageBox.critical(self.window, 'Error', response.error_message)
             return
-
 
     def read_messages_event(self):
         """
@@ -507,7 +501,7 @@ def main():
     # load GUI
     app = QApplication(argv)
 
-    mainframe = ui.MainFrame()
+    mainframe = MainFrame()
     window = create_window(mainframe)
 
     print("Trying to connect to server...")

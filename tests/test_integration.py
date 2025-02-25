@@ -9,70 +9,63 @@ Every request will have a hardcoded expectation response object.
 The test case asserts that all responses match their expectations.
 """
 
-import socket
+import grpc
 import uuid
 import pytest
 import time
 import subprocess
 
-from api import *
+from protos.chat_pb2 import *
+from protos.chat_pb2_grpc import *
 from config import LOCALHOST, SERVER_PORT
-from entity import *
+
+# @pytest.fixture(scope="session", autouse=True)
+# def start_server():
+#     """Start the server before tests and ensure it shuts down after."""
+#     print("\nStarting server...")
+#
+#     # Start the server process
+#     server_process = subprocess.Popen(["python", "server.py"], stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+#
+#     # Wait for server to be ready (adjust timeout if necessary)
+#     timeout = 5
+#     start_time = time.time()
+#     while time.time() - start_time < timeout:
+#         try:
+#             # Try connecting to see if server is up
+#             sock = socket.create_connection((LOCALHOST, SERVER_PORT), timeout=1)
+#             sock.close()
+#             print("Server is ready!")
+#             break
+#         except (ConnectionRefusedError, OSError):
+#             time.sleep(1)
+#     else:
+#         server_process.kill()
+#         pytest.exit("Server failed to start within timeout.")
+#
+#     # Tests run after this
+#     yield
+#
+#     print("\nStopping server...")
+#     server_process.terminate()
+#     server_process.wait()
+#     print("Server stopped.")
+#
+#
+# @pytest.fixture(scope="session")
+# def sock():
+#     """Fixture to create and close a socket connection before and after each test."""
+#     client_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+#     client_socket.connect((LOCALHOST, SERVER_PORT))
+#     yield client_socket  # This is what gets passed into test functions
+#     client_socket.close()  # Cleanup after each test
+
+channel = grpc.insecure_channel(f"{LOCALHOST}:{SERVER_PORT}")
+stub = ChatServerStub(channel)
+print("client connected to the server")
 
 
-@pytest.fixture(scope="session", autouse=True)
-def start_server():
-    """Start the server before tests and ensure it shuts down after."""
-    print("\nStarting server...")
-
-    # Start the server process
-    server_process = subprocess.Popen(["python", "server.py"], stdout=subprocess.PIPE, stderr=subprocess.PIPE)
-
-    # Wait for server to be ready (adjust timeout if necessary)
-    timeout = 5
-    start_time = time.time()
-    while time.time() - start_time < timeout:
-        try:
-            # Try connecting to see if server is up
-            sock = socket.create_connection((LOCALHOST, SERVER_PORT), timeout=1)
-            sock.close()
-            print("Server is ready!")
-            break
-        except (ConnectionRefusedError, OSError):
-            time.sleep(1)
-    else:
-        server_process.kill()
-        pytest.exit("Server failed to start within timeout.")
-
-    # Tests run after this
-    yield
-
-    print("\nStopping server...")
-    server_process.terminate()
-    server_process.wait()
-    print("Server stopped.")
-
-
-@pytest.fixture(scope="session")
-def sock():
-    """Fixture to create and close a socket connection before and after each test."""
-    client_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-    client_socket.connect((LOCALHOST, SERVER_PORT))
-    yield client_socket  # This is what gets passed into test functions
-    client_socket.close()  # Cleanup after each test
-
-
-def recv_resp_bytes(sock: socket.socket) -> bytes:
-    recvd = sock.recv(Header.SIZE, socket.MSG_WAITALL)
-    assert recvd and len(recvd) == Header.SIZE
-
-    header = Header.unpack(recvd)
-    recvd += sock.recv(header.payload_size, socket.MSG_WAITALL)
-
-    return recvd
-
-
-def test_auth(sock: socket.socket):
+def test_auth():
     """
     This test case tests the following:
     1. Log in to an account that doesn't exist.
@@ -84,11 +77,10 @@ def test_auth(sock: socket.socket):
     req = AuthRequest(action_type=AuthRequest.ActionType.LOGIN,
                       username="user1",
                       password="password")
-    exp = ErrorResponse(message="Login failed: user \"user1\" does not exist.")
+    exp = AuthResponse(status=Status.ERROR,
+                       error_message="Login failed: user \"user1\" does not exist.")
 
-    sock.sendall(req.pack())
-    resp = ErrorResponse.unpack(recv_resp_bytes(sock))
-
+    resp = stub.Authenticate(req)
     assert resp == exp
     # ========================================================================================== #
 
@@ -96,11 +88,9 @@ def test_auth(sock: socket.socket):
     req = AuthRequest(action_type=AuthRequest.ActionType.CREATE_ACCOUNT,
                       username="user1",
                       password="password")
-    exp = AuthResponse()
+    exp = AuthResponse(status=Status.SUCCESS)
 
-    sock.sendall(req.pack())
-    resp = AuthResponse.unpack(recv_resp_bytes(sock))
-
+    resp = stub.Authenticate(req)
     assert resp == exp
     # ========================================================================================== #
 
@@ -108,11 +98,10 @@ def test_auth(sock: socket.socket):
     req = AuthRequest(action_type=AuthRequest.ActionType.CREATE_ACCOUNT,
                       username="user1",
                       password="password")
-    exp = ErrorResponse(message="Create account failed: user \"user1\" already exists.")
+    exp = AuthResponse(status=Status.ERROR,
+                       error_message="Create account failed: user \"user1\" already exists.")
 
-    sock.sendall(req.pack())
-    resp = ErrorResponse.unpack(recv_resp_bytes(sock))
-
+    resp = stub.Authenticate(req)
     assert resp == exp
     # ========================================================================================== #
 
@@ -120,16 +109,15 @@ def test_auth(sock: socket.socket):
     req = AuthRequest(action_type=AuthRequest.ActionType.LOGIN,
                       username="user1",
                       password="wrong_password")
-    exp = ErrorResponse(message="Login failed: incorrect password.")
+    exp = AuthResponse(status=Status.ERROR,
+                       error_message="Login failed: incorrect password.")
 
-    sock.sendall(req.pack())
-    resp = ErrorResponse.unpack(recv_resp_bytes(sock))
-
+    resp = stub.Authenticate(req)
     assert resp == exp
     # ========================================================================================== #
 
 
-def test_send_and_get(sock: socket.socket):
+def test_send_and_get():
     """
     This test case tests the following:
     1. Send a message to a user that doesn't exist.
@@ -140,84 +128,75 @@ def test_send_and_get(sock: socket.socket):
     req = AuthRequest(action_type=AuthRequest.ActionType.CREATE_ACCOUNT,
                       username="user2",
                       password="password")
-    exp = AuthResponse()
+    exp = AuthResponse(status=Status.SUCCESS)
 
-    sock.sendall(req.pack())
-    resp = AuthResponse.unpack(recv_resp_bytes(sock))
-
+    resp = stub.Authenticate(req)
     assert resp == exp
     # ========================================================================================== #
 
     # ========================================== TEST ========================================== #
-    invalid_msg = Message(sender="user1",
-                          receiver="user3",
+    invalid_msg = Message(id=uuid.UUID(int=0).bytes,
+                          sender="user1",
+                          recipient="user3",
                           body="hello user3!",
-                          id=uuid.UUID(int=0),
-                          ts=0)
+                          timestamp=0)
     req = SendMessageRequest(username="user1",
                              message=invalid_msg)
-    exp = ErrorResponse(message="Send message failed: recipient \"user3\" does not exist.")
+    exp = SendMessageResponse(status=Status.ERROR,
+                              error_message="Send message failed: recipient \"user3\" does not exist.")
 
-    sock.sendall(req.pack())
-    resp = ErrorResponse.unpack(recv_resp_bytes(sock))
-
+    resp = stub.SendMessage(req)
     assert resp == exp
     # ========================================================================================== #
 
     # ========================================== TEST ========================================== #
-    msg1 = Message(sender="user1",
-                   receiver="user2",
+    msg1 = Message(id=uuid.UUID(int=1).bytes,
+                   sender="user1",
+                   recipient="user2",
                    body="hello user2!",
-                   id=uuid.UUID(int=1),
-                   ts=1)
+                   timestamp=1)
     req = SendMessageRequest(username="user1",
                              message=msg1)
-    exp = SendMessageResponse()
+    exp = SendMessageResponse(status=Status.SUCCESS)
 
-    sock.sendall(req.pack())
-    resp = SendMessageResponse.unpack(recv_resp_bytes(sock))
-
+    resp = stub.SendMessage(req)
     assert resp == exp
     # ========================================================================================== #
 
     # ========================================== TEST ========================================== #
-    msg2 = Message(sender="user1",
-                   receiver="user2",
+    msg2 = Message(id=uuid.UUID(int=2).bytes,
+                   sender="user1",
+                   recipient="user2",
                    body="how are you doing, user2?",
-                   id=uuid.UUID(int=2),
-                   ts=2)
+                   timestamp=2)
     req = SendMessageRequest(username="user1",
                              message=msg2)
-    exp = SendMessageResponse()
+    exp = SendMessageResponse(status=Status.SUCCESS)
 
-    sock.sendall(req.pack())
-    resp = SendMessageResponse.unpack(recv_resp_bytes(sock))
-
+    resp = stub.SendMessage(req)
     assert resp == exp
     # ========================================================================================== #
 
     # ========================================== TEST ========================================== #
     req = GetMessagesRequest(username="user1")
-    exp = GetMessagesResponse(messages=[])
+    exp = GetMessagesResponse(status=Status.SUCCESS,
+                              messages=[])
 
-    sock.sendall(req.pack())
-    resp = GetMessagesResponse.unpack(recv_resp_bytes(sock))
-
+    resp = stub.GetMessages(req)
     assert resp == exp
     # ========================================================================================== #
 
     # ========================================== TEST ========================================== #
     req = GetMessagesRequest(username="user2")
-    exp = GetMessagesResponse(messages=[msg1, msg2])
+    exp = GetMessagesResponse(status=Status.SUCCESS,
+                              messages=[msg1, msg2])
 
-    sock.sendall(req.pack())
-    resp = GetMessagesResponse.unpack(recv_resp_bytes(sock))
-
+    resp = stub.GetMessages(req)
     assert resp == exp
     # ========================================================================================== #
 
 
-def test_list_users(sock: socket.socket):
+def test_list_users():
     """
     This test case tests the following:
     1. List all users of the form user*.
@@ -225,11 +204,10 @@ def test_list_users(sock: socket.socket):
     """
     # ========================================== TEST ========================================== #
     req = ListUsersRequest(username="user1", pattern="user*")
-    exp = ListUsersResponse(usernames=["user1", "user2"])
+    exp = ListUsersResponse(status=Status.SUCCESS,
+                            usernames=["user1", "user2"])
 
-    sock.sendall(req.pack())
-    resp = ListUsersResponse.unpack(recv_resp_bytes(sock))
-
+    resp = stub.ListUsers(req)
     assert resp == exp
     # ========================================================================================== #
 
@@ -237,14 +215,12 @@ def test_list_users(sock: socket.socket):
     req = ListUsersRequest(username="user1", pattern="a*")
     exp = ListUsersResponse(usernames=[])
 
-    sock.sendall(req.pack())
-    resp = ListUsersResponse.unpack(recv_resp_bytes(sock))
-
+    resp = stub.ListUsers(req)
     assert resp == exp
     # ========================================================================================== #
 
 
-def test_read_messages(sock: socket.socket):
+def test_read_messages():
     """
     This test case tests the following:
     1. Get the messages for user2 and assert that they are unread.
@@ -253,9 +229,7 @@ def test_read_messages(sock: socket.socket):
     """
     # ========================================== TEST ========================================== #
     req = GetMessagesRequest(username="user2")
-
-    sock.sendall(req.pack())
-    resp = GetMessagesResponse.unpack(recv_resp_bytes(sock))
+    resp = stub.GetMessages(req)
 
     messages = resp.messages
     for message in messages:
@@ -267,19 +241,15 @@ def test_read_messages(sock: socket.socket):
     # ========================================== TEST ========================================== #
     req = ReadMessagesRequest(username="user2",
                               message_ids=message_ids)
-    exp = ReadMessagesResponse()
+    exp = ReadMessagesResponse(status=Status.SUCCESS)
 
-    sock.sendall(req.pack())
-    resp = ReadMessagesResponse.unpack(recv_resp_bytes(sock))
-
+    resp = stub.ReadMessages(req)
     assert resp == exp
     # ========================================================================================== #
 
     # ========================================== TEST ========================================== #
     req = GetMessagesRequest(username="user2")
-
-    sock.sendall(req.pack())
-    resp = GetMessagesResponse.unpack(recv_resp_bytes(sock))
+    resp = stub.GetMessages(req)
 
     messages = resp.messages
     for message in messages:
@@ -287,7 +257,7 @@ def test_read_messages(sock: socket.socket):
     # ========================================================================================== #
 
 
-def test_delete_messages(sock: socket.socket):
+def test_delete_messages():
     """
     This test case tests the following:
     1. Get the messages for user2.
@@ -296,9 +266,7 @@ def test_delete_messages(sock: socket.socket):
     """
     # ========================================== TEST ========================================== #
     req = GetMessagesRequest(username="user2")
-
-    sock.sendall(req.pack())
-    resp = GetMessagesResponse.unpack(recv_resp_bytes(sock))
+    resp = stub.GetMessages(req)
 
     messages = resp.messages
     message_ids = [message.id for message in messages]
@@ -307,26 +275,23 @@ def test_delete_messages(sock: socket.socket):
     # ========================================== TEST ========================================== #
     req = DeleteMessagesRequest(username="user2",
                                 message_ids=message_ids)
-    exp = DeleteMessagesResponse()
+    exp = DeleteMessagesResponse(status=Status.SUCCESS)
 
-    sock.sendall(req.pack())
-    resp = DeleteMessagesResponse.unpack(recv_resp_bytes(sock))
-
+    resp = stub.DeleteMessages(req)
     assert resp == exp
     # ========================================================================================== #
 
     # ========================================== TEST ========================================== #
     req = GetMessagesRequest(username="user2")
-    exp = GetMessagesResponse(messages=[])
+    exp = GetMessagesResponse(status=Status.SUCCESS,
+                              messages=[])
 
-    sock.sendall(req.pack())
-    resp = GetMessagesResponse.unpack(recv_resp_bytes(sock))
-
+    resp = stub.GetMessages(req)
     assert resp == exp
     # ========================================================================================== #
 
 
-def test_delete_user(sock: socket.socket):
+def test_delete_user():
     """
     This test case tests the following:
     1. Send a message to user2 so that it has a non-empty inbox.
@@ -336,28 +301,23 @@ def test_delete_user(sock: socket.socket):
     5. Assert that a message to user2 now fails: user not found.
     """
     # ========================================== TEST ========================================== #
-    msg = Message(sender="user1",
-                  receiver="user2",
-                  body="hello user2!",
-                  id=uuid.UUID(int=1),
-                  ts=1)
+    msg = Message(id=uuid.UUID(int=1).bytes,
+                  sender="user1",
+                  recipient="user2",
+                  body="hello user2!")
     req = SendMessageRequest(username="user1",
                              message=msg)
-    exp = SendMessageResponse()
+    exp = SendMessageResponse(status=Status.SUCCESS)
 
-    sock.sendall(req.pack())
-    resp = SendMessageResponse.unpack(recv_resp_bytes(sock))
-
+    resp = stub.SendMessage(req)
     assert resp == exp
     # ========================================================================================== #
 
     # ========================================== TEST ========================================== #
     req = DeleteUserRequest(username="user2")
-    exp = DeleteUserResponse()
+    exp = DeleteUserResponse(status=Status.SUCCESS)
 
-    sock.sendall(req.pack())
-    resp = DeleteUserResponse.unpack(recv_resp_bytes(sock))
-
+    resp = stub.DeleteUser(req)
     assert resp == exp
     # ========================================================================================== #
 
@@ -365,11 +325,10 @@ def test_delete_user(sock: socket.socket):
     req = AuthRequest(action_type=AuthRequest.ActionType.LOGIN,
                       username="user2",
                       password="password")
-    exp = ErrorResponse(message="Login failed: user \"user2\" does not exist.")
+    exp = AuthResponse(status=Status.ERROR,
+                       error_message="Login failed: user \"user2\" does not exist.")
 
-    sock.sendall(req.pack())
-    resp = ErrorResponse.unpack(recv_resp_bytes(sock))
-
+    resp = stub.Authenticate(req)
     assert resp == exp
     # ========================================================================================== #
 
@@ -377,40 +336,34 @@ def test_delete_user(sock: socket.socket):
     req = AuthRequest(action_type=AuthRequest.ActionType.LOGIN,
                       username="user1",
                       password="password")
-    exp = AuthResponse()
+    exp = AuthResponse(status=Status.SUCCESS)
 
-    sock.sendall(req.pack())
-    resp = AuthResponse.unpack(recv_resp_bytes(sock))
-
+    resp = stub.Authenticate(req)
     assert resp == exp
     # ========================================================================================== #
 
     # ========================================== TEST ========================================== #
-    msg = Message(sender="user1",
-                  receiver="user2",
-                  body="are you still alive",
-                  id=uuid.UUID(int=0),
-                  ts=0)
+    msg = Message(id=uuid.UUID(int=0).bytes,
+                  sender="user1",
+                  recipient="user2",
+                  body="are you still alive")
     req = SendMessageRequest(username="user1",
                              message=msg)
-    exp = ErrorResponse(message="Send message failed: recipient \"user2\" does not exist.")
+    exp = SendMessageResponse(status=Status.ERROR,
+                              error_message="Send message failed: recipient \"user2\" does not exist.")
 
-    sock.sendall(req.pack())
-    resp = ErrorResponse.unpack(recv_resp_bytes(sock))
-
+    resp = stub.SendMessage(req)
     assert resp == exp
     # ========================================================================================== #
 
 
 if __name__ == '__main__':
     # Connect to the server
-    client_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-    client_socket.connect((LOCALHOST, SERVER_PORT))
+    test_auth()
+    test_send_and_get()
+    test_list_users()
+    test_read_messages()
+    test_delete_messages()
+    test_delete_user()
 
-    # Run tests (the order matters!)
-    test_auth(client_socket)
-    test_send_and_get(client_socket)
-    test_list_users(client_socket)
-    test_read_messages(client_socket)
-    test_delete_messages(client_socket)
-    test_delete_user(client_socket)
+    channel.close()

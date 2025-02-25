@@ -1,35 +1,21 @@
-import socket
-
-from api import *
-from config import LOCALHOST, SERVER_PORT
-from entity import *
+from config import SERVER_PORT
+from protos.chat_pb2 import *
+from protos.chat_pb2_grpc import *
 
 
 def main():
-    # Connect to the server
-    client_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-    client_socket.connect((LOCALHOST, SERVER_PORT))
-    print(f"Client connected to {LOCALHOST}:{SERVER_PORT}")
+    server_addr = f"localhost:{SERVER_PORT}"
+    with grpc.insecure_channel(server_addr) as channel:
+        stub = ChatServerStub(channel)
 
-    while True:
-        s = input("> ")
+        while True:
+            s = input("> ")
 
-        # Send the echo request
-        req = EchoRequest(string=s)
-        client_socket.send(req.pack())
+            response = stub.Echo(EchoRequest(message=s))
 
-        # Receive the header
-        recvd = client_socket.recv(Header.SIZE, socket.MSG_WAITALL)
-        assert recvd and len(recvd) == Header.SIZE
-
-        # Unpack the header and receive the payload
-        header = Header.unpack(recvd)
-        recvd += client_socket.recv(header.payload_size, socket.MSG_WAITALL)
-
-        # Unpack the response
-        resp = EchoResponse.unpack(recvd)
-        print(f"Echoed: {resp.string}")
+            print(f"SENT: {s}")
+            print(f"RECEIVED: {response.message}")
 
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     main()

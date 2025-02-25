@@ -1,9 +1,6 @@
 import netifaces
-import socket
 
-from api import *
 from config import NETWORK_INTERFACE
-from entity import Header, RequestType
 
 
 def get_ipaddr():
@@ -18,36 +15,3 @@ def get_ipaddr():
     except ValueError:
         # NETWORK_INTERFACE might not exist on this machine
         return None
-
-
-def recv_resp_bytes(sock: socket.socket) -> (Header, bytes):
-    recvd = sock.recv(Header.SIZE, socket.MSG_WAITALL)
-    assert recvd and len(recvd) == Header.SIZE
-
-    header = Header.unpack(recvd)
-    recvd += sock.recv(header.payload_size, socket.MSG_WAITALL)
-
-    return header, recvd
-
-
-def parse_request(request_type: RequestType, data: bytes):
-    match request_type:
-        case RequestType.ECHO:
-            return EchoRequest.unpack(data)
-        case RequestType.AUTHENTICATE:
-            return AuthRequest.unpack(data)
-        case RequestType.GET_MESSAGES:
-            return GetMessagesRequest.unpack(data)
-        case RequestType.LIST_USERS:
-            return ListUsersRequest.unpack(data)
-        case RequestType.SEND_MESSAGE:
-            return SendMessageRequest.unpack(data)
-        case RequestType.READ_MESSAGES:
-            return ReadMessagesRequest.unpack(data)
-        case RequestType.DELETE_MESSAGES:
-            return DeleteMessagesRequest.unpack(data)
-        case RequestType.DELETE_USER:
-            return DeleteUserRequest.unpack(data)
-        case _:
-            print("Unknown request type.")
-            exit(1)

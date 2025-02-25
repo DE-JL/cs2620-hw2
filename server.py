@@ -1,16 +1,16 @@
-from fnmatch import fnmatch
-import selectors
-import socket
-import types
 import uuid
 
-from api import *
+from concurrent import futures
+from fnmatch import fnmatch
+
+from protos.chat_pb2 import *
+from protos.chat_pb2_grpc import *
 from config import DEBUG, LOCALHOST, PUBLIC_STATUS, SERVER_PORT
-from entity import *
-from utils import get_ipaddr, parse_request
+from entity import User
+from utils import get_ipaddr
 
 
-class Server:
+class ChatServiceServicer(ChatServerServicer):
     """Main server class that manages users and message state for all clients."""
 
     def __init__(self):
@@ -20,149 +20,11 @@ class Server:
         self.inbound_volume: int = 0
         self.outbound_volume: int = 0
 
-        # Create server socket
-        self.sel = selectors.DefaultSelector()
-        self.server_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-        self.server_socket.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
-        self.server_socket.setblocking(False)
+    def Echo(self, request: EchoRequest, context: grpc.ServicerContext) -> EchoResponse:
+        return EchoResponse(status=Status.SUCCESS,
+                            message=request.message)
 
-    def run(self, host: str, port: int):
-        # Bind and listen on <host:port>
-        self.server_socket.bind((host, port))
-        self.server_socket.listen()
-        print(f"Server listening on {host}:{port}")
-
-        # Register the socket
-        self.sel.register(self.server_socket, selectors.EVENT_READ, None)
-        try:
-            while True:
-                events = self.sel.select(timeout=None)
-                for key, mask in events:
-                    if key.data is None:
-                        self.accept_wrapper(key)
-                    else:
-                        self.service_connection(key, mask)
-        except KeyboardInterrupt:
-            print("Caught keyboard interrupt, exiting.")
-        finally:
-            self.sel.close()
-
-    def accept_wrapper(self, key: selectors.SelectorKey):
-        """
-        Accept a new client connection and register it for reading.
-
-        :param key: Select key.
-        """
-        sock = key.fileobj
-        if not isinstance(sock, socket.socket):
-            raise TypeError("accept_wrapper expected a socket.socket")
-
-        # Accept the connection
-        conn, addr = sock.accept()
-        print(f"Accepted client connection from: {addr}")
-
-        # Set the connection to be non-blocking
-        conn.setblocking(False)
-
-        # Store a context namespace for this particular connection
-        ctx = types.SimpleNamespace(addr=addr, outbound=b"", username=None)
-        self.sel.register(conn, selectors.EVENT_READ | selectors.EVENT_WRITE, data=ctx)
-
-    def service_connection(self, key: selectors.SelectorKey, mask: int):
-        """
-        This function serves a connection.
-
-        If the socket is receiving a request, it will:
-        1. Read a fixed-size protocol header.
-        2. Read a request whose size is given by the protocol header.
-        3. Parse the request (whose type is given by the protocol header).
-        4. Pass the request to the request handler.
-
-        :param key: Connection key.
-        :param mask: Mask for selecting events.
-        """
-        sock = key.fileobj
-        ctx = key.data
-
-        # Explicit type checking
-        assert isinstance(sock, socket.socket)
-        assert isinstance(ctx, types.SimpleNamespace)
-
-        # Check if the socket is ready for reading
-        if mask & selectors.EVENT_READ:
-            # Receive the header
-            recvd = sock.recv(Header.SIZE, socket.MSG_WAITALL)
-
-            # Check if the client closed the connection
-            if not recvd or len(recvd) != Header.SIZE:
-                # Close the connection
-                self.sel.unregister(sock)
-                sock.close()
-                print(f"Closed connection to {ctx.addr}")
-
-                if DEBUG:
-                    self.log()
-                return
-
-            # Unpack the header and receive the payload
-            header = Header.unpack(recvd)
-            recvd += sock.recv(header.payload_size, socket.MSG_WAITALL)
-            self.inbound_volume += len(recvd)
-
-            # Parse the request
-            request_type = RequestType(header.header_type)
-            request = parse_request(request_type, recvd)
-            if DEBUG:
-                print(f"Received request {request_type}: {request}")
-
-            # Handle the request
-            self.handle_request(ctx, request)
-            if DEBUG:
-                self.log()
-
-        # Send a response if it exists
-        if mask & selectors.EVENT_WRITE:
-            if ctx.outbound:
-                sent = sock.send(ctx.outbound)
-                ctx.outbound = ctx.outbound[sent:]
-                self.outbound_volume += sent
-
-    def handle_request(self, ctx: types.SimpleNamespace, request: Request):
-        """
-        This function is called whenever a request is received.
-
-        It forwards the request to the appropriate handler based on the request type.
-
-        :param ctx: The connection context of the request.
-        :param request: The request object.
-        """
-        match request:
-            case EchoRequest():
-                self.handle_echo(ctx, request)
-            case AuthRequest():
-                self.handle_auth(ctx, request)
-            case GetMessagesRequest():
-                self.handle_get_messages(ctx, request)
-            case ListUsersRequest():
-                self.handle_list_users(ctx, request)
-            case SendMessageRequest():
-                self.handle_send_message(ctx, request)
-            case ReadMessagesRequest():
-                self.handle_read_messages(ctx, request)
-            case DeleteMessagesRequest():
-                self.handle_delete_messages(ctx, request)
-            case DeleteUserRequest():
-                self.handle_delete_user(ctx, request)
-            case _:
-                print("Handle request: unknown request type.")
-                exit(1)
-
-    @classmethod
-    def handle_echo(cls, ctx: types.SimpleNamespace, request: EchoRequest):
-        resp = EchoResponse(string=request.string)
-        ctx.outbound += resp.pack()
-
-    def handle_auth(self, ctx: types.SimpleNamespace, request: AuthRequest):
+    def Authenticate(self, request: AuthRequest, context: grpc.ServicerContext) -> AuthResponse:
         """
         This function handles all authentication requests: users creating an account or logging in.
 
@@ -174,65 +36,67 @@ class Server:
         If there was an error, the server sends an ErrorResponse() object with a description to the client.
         On success, the server sends a blank AuthResponse() object to the client.
 
-        :param ctx: The connection context of the request.
         :param request: The AuthRequest object.
-        :return: None
+        :param context: The servicer context.
+        :rtype: AuthResponse
         """
         username, password = request.username, request.password
+
+        if DEBUG:
+            print(f"Received AuthRequest with action type: {request.action_type} for user: {username}")
+
         match request.action_type:
             case AuthRequest.ActionType.CREATE_ACCOUNT:
                 if username in self.users:
-                    resp = ErrorResponse(message=f"Create account failed: user \"{username}\" already exists.")
+                    return AuthResponse(status=Status.ERROR,
+                                        error_message=f"Create account failed: user \"{username}\" already exists.")
                 else:
                     self.users[username] = User(username=username, password=password)
-                    resp = AuthResponse()
-
             case AuthRequest.ActionType.LOGIN:
                 if username not in self.users:
-                    resp = ErrorResponse(message=f"Login failed: user \"{username}\" does not exist.")
+                    return AuthResponse(status=Status.ERROR,
+                                        error_message=f"Login failed: user \"{username}\" does not exist.")
                 elif password != self.users[username].password:
-                    resp = ErrorResponse(message=f"Login failed: incorrect password.")
-                else:
-                    resp = AuthResponse()
-
+                    return AuthResponse(status=Status.ERROR,
+                                        error_message=f"Login failed: incorrect password.")
             case _:
                 print("Unknown AuthRequest action type.")
                 exit(1)
 
-        # Send the response
-        ctx.outbound += resp.pack()
+        if DEBUG:
+            self.log()
 
-    def handle_get_messages(self, ctx: types.SimpleNamespace, request: GetMessagesRequest):
+        return AuthResponse(status=Status.SUCCESS)
+
+    def GetMessages(self, request: GetMessagesRequest, context: grpc.ServicerContext) -> GetMessagesResponse:
         """
         This function handles all get messages requests.
 
         It responds with a list of non-deleted messages that were sent to the requester.
 
-        :param ctx: The connection context of the request.
         :param request: The GetMessagesRequest object.
+        :param context: The servicer context.
+        :rtype: GetMessagesResponse
         """
         username = request.username
-        if username not in self.users:
-            resp = GetMessagesResponse(messages=[])
-            ctx.outbound += resp.pack()
-            return
+        assert username in self.users
 
         # Grab all messages associated with the user
         message_ids = self.users[username].message_ids
         messages = [self.messages[message_id] for message_id in message_ids]
 
-        # Send the response
-        resp = GetMessagesResponse(messages=messages)
-        ctx.outbound += resp.pack()
+        return GetMessagesResponse(status=Status.SUCCESS,
+                                   messages=messages)
 
-    def handle_list_users(self, ctx: types.SimpleNamespace, request: ListUsersRequest):
+    def ListUsers(self, request: ListUsersRequest, context: grpc.ServicerContext) -> ListUsersResponse:
         """
         This function handles all list users requests.
 
         It responds with a list of all current users whose usernames match the provided wildcard pattern.
 
-        :param ctx: The connection context of the request.
         :param request: The ListUsersRequest object.
+        :param context: The servicer context.
+        :rtype: GetMessagesResponse
         """
         username, pattern = request.username, request.pattern
 
@@ -240,20 +104,23 @@ class Server:
         if DEBUG:
             print(f"Pattern {pattern} matched users: {matches}")
 
-        # Send the response
-        resp = ListUsersResponse(usernames=matches)
-        ctx.outbound += resp.pack()
+        if DEBUG:
+            self.log()
 
-    def handle_send_message(self, ctx: types.SimpleNamespace, request: SendMessageRequest):
+        return ListUsersResponse(status=Status.SUCCESS,
+                                 usernames=matches)
+
+    def SendMessage(self, request: SendMessageRequest, context: grpc.ServicerContext) -> SendMessageResponse:
         """
         This function handles all send messages requests.
 
         It inserts the message into the map of message IDs to message objects.
-        Then it inserts the message ID into the receiver's message inbox.
+        Then it inserts the message ID into the recipient's message inbox.
         On success, it responds with a blank SendMessageResponse() object.
 
-        :param ctx:
-        :param request:
+        :param request: The SendMessageRequest object.
+        :param context: The servicer context.
+        :rtype: SendMessageResponse
         """
         username, message = request.username, request.message
 
@@ -261,22 +128,24 @@ class Server:
         assert message.id not in self.messages
         assert username == message.sender
 
-        if message.receiver not in self.users:
-            resp = ErrorResponse(message=f"Send message failed: recipient \"{message.receiver}\" does not exist.")
-        else:
-            # Store the message
-            self.messages[message.id] = message
+        if message.recipient not in self.users:
+            return SendMessageResponse(status=Status.ERROR,
+                                       error_message=f"Send message failed: recipient \"{message.recipient}\" does not exist.")
 
-            # Add the message to the receiver's inbox
-            receiver = self.users[message.receiver]
-            receiver.add_message(message.id)
+        # Store the message
+        message_id = uuid.UUID(bytes=message.id)
+        self.messages[message_id] = message
 
-            resp = SendMessageResponse()
+        # Add the message to the recipient's inbox
+        recipient = self.users[message.recipient]
+        recipient.add_message(message_id)
 
-        # Send the response
-        ctx.outbound += resp.pack()
+        if DEBUG:
+            self.log()
 
-    def handle_read_messages(self, ctx: types.SimpleNamespace, request: ReadMessagesRequest):
+        return SendMessageResponse(status=Status.SUCCESS)
+
+    def ReadMessages(self, request: ReadMessagesRequest, context: grpc.ServicerContext) -> ReadMessagesResponse:
         """
         This function handles all read messages requests.
 
@@ -285,65 +154,74 @@ class Server:
         It sets the read flag of the message to true.
         On success, it responds with a blank ReadMessageResponse() object.
 
-        :param ctx: The connection context of the request.
         :param request: The ReadMessagesRequest object.
+        :param context: The servicer context.
+        :rtype: ReadMessagesResponse
         """
         username, message_ids = request.username, request.message_ids
 
         # Set the read flag for each message in the request
         for message_id in message_ids:
-            # Grab the message
+            # Convert to UUID
+            message_id = uuid.UUID(bytes=message_id)
             assert message_id in self.messages
+
             message = self.messages[message_id]
 
-            # Assert that the receiver matches the request username
-            assert message.receiver == username
+            # Assert that the recipient matches the request username
+            assert message.recipient == username
 
             # Mark the message as read
-            message.set_read()
+            assert not message.read
+            message.read = True
 
-        # Send the response
-        resp = ReadMessagesResponse()
-        ctx.outbound += resp.pack()
+        if DEBUG:
+            self.log()
 
-    def handle_delete_messages(self, ctx: types.SimpleNamespace, request: DeleteMessagesRequest):
+        return ReadMessagesResponse(status=Status.SUCCESS)
+
+    def DeleteMessages(self, request: DeleteMessagesRequest, context: grpc.ServicerContext) -> DeleteMessagesResponse:
         """
         This function handles all delete messages requests.
 
         It iterates over a list of message IDs.
         For each message ID, it gets the message object corresponding to the message ID.
-        It deletes the message object as well as the ID from the receiver's inbox.
+        It deletes the message object as well as the ID from the recipient's inbox.
         On success, it responds with a blank DeleteMessagesResponse() object.
 
-        :param ctx: The connection context of the request.
         :param request: The DeleteMessagesRequest object.
+        :param context: The servicer context.
+        :rtype: DeleteMessagesResponse
         """
         username, message_ids = request.username, request.message_ids
 
-        # Get the receiver
-        receiver = self.users[username]
+        # Get the recipient
+        recipient = self.users[username]
 
         # Delete the messages one by one
         for message_id in message_ids:
+            # Convert to UUID
+            message_id = uuid.UUID(bytes=message_id)
             assert message_id in self.messages
 
             # Get the message to delete
             message = self.messages[message_id]
 
-            # Assert that the receiver matches the request username
-            assert message.receiver == username
+            # Assert that the recipient matches the request username
+            assert message.recipient == username
 
-            # Delete the message from the receiver
-            receiver.delete_message(message_id)
+            # Delete the message from the recipient
+            recipient.delete_message(message_id)
 
             # Delete the message
             del self.messages[message_id]
 
-        # Send the response
-        resp = DeleteMessagesResponse()
-        ctx.outbound += resp.pack()
+        if DEBUG:
+            self.log()
 
-    def handle_delete_user(self, ctx: types.SimpleNamespace, request: DeleteUserRequest):
+        return DeleteMessagesResponse(status=Status.SUCCESS)
+
+    def DeleteUser(self, request: DeleteUserRequest, context: grpc.ServicerContext) -> DeleteUserResponse:
         """
         This function handles all delete user requests.
 
@@ -352,12 +230,14 @@ class Server:
         The user is then removed from the server's state.
         On success, it responds with a blank DeleteUserResponse() object.
 
-        :param ctx: The connection context of the request.
         :param request: The DeleteUserRequest object.
+        :param context: The servicer context.
+        :rtype: DeleteUserResponse
         """
         username = request.username
 
         # Get the user
+        assert username in self.users
         user = self.users[username]
 
         # Delete all messages sent to that user
@@ -368,9 +248,10 @@ class Server:
         # Delete the user
         del self.users[username]
 
-        # Send the response
-        resp = DeleteUserResponse()
-        ctx.outbound += resp.pack()
+        if DEBUG:
+            self.log()
+
+        return DeleteUserResponse(status=Status.SUCCESS)
 
     def log(self):
         """Utility function that logs the state of the server."""
@@ -383,8 +264,11 @@ class Server:
 
 
 def main():
-    """Entry point for server application."""
+    # Initialize the server
+    server = grpc.server(futures.ThreadPoolExecutor(max_workers=1))
+    add_ChatServerServicer_to_server(ChatServiceServicer(), server)
 
+    # Check for public visibility
     if not PUBLIC_STATUS:
         host = LOCALHOST
     else:
@@ -393,9 +277,14 @@ def main():
             print("Error: server IP address could not be found.")
             exit(1)
 
-    server = Server()
-    server.run(host, SERVER_PORT)
+    # Bind the server to host:port
+    server_addr = f"{host}:{SERVER_PORT}"
+    server.add_insecure_port(server_addr)
+    server.start()
+
+    print(f"Server listening on {server_addr}")
+    server.wait_for_termination()
 
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     main()
