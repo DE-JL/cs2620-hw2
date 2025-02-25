@@ -11,34 +11,23 @@ from PyQt5.QtCore import QObject, pyqtSignal, pyqtSlot
 from PyQt5.QtCore import QThread
 from sys import argv
 
-import api
 import ui
 
 from config import GUI_REFRESH_RATE
-from entity import Message, ResponseType, ErrorResponse
+from entity import Message
 from ui import MainFrame
-from utils import recv_resp_bytes
+import uuid
+import time
 
-SAMPLE_DATA = [
-    Message(sender="alice", receiver="bob", body="Hey Bob, are you free later?"),
-    Message(sender="charlie", receiver="bob", body="Bob, I sent you the report."),
-    Message(sender="dave", receiver="bob", body="Let's meet at 5 PM."),
-    Message(sender="eve", receiver="bob", body="Check your email when you can."),
-    Message(sender="frank", receiver="bob", body="Want to grab lunch today?", read=True),
-    Message(sender="george", receiver="bob", body="I need help with my project."),
-    Message(sender="harry", receiver="bob", body="Hey, got time for a quick call?"),
-    Message(sender="isaac", receiver="bob", body="Your package has been delivered.", read=True),
-    Message(sender="jack", receiver="bob", body="Meeting rescheduled to tomorrow.", read=True),
-    Message(sender="kate", receiver="bob", body="Thanks for the help earlier!")
-]
-
+from chat_pb2 import *
+from chat_pb2_grpc import *
 
 class UserSession:
     """
     A class to represent a socket-based user session
     """
 
-    def __init__(self, host: str, port: int, mainframe: MainFrame, window: QMainWindow, debug: bool = False):
+    def __init__(self, host: str, port: int, mainframe: MainFrame, window: QMainWindow):
         """
         Initialize a UserSession instance.
 
@@ -50,24 +39,26 @@ class UserSession:
         """
         self.mainframe = mainframe
         self.window = window
-        self.debug = debug
         self.username = None
 
         self.host = host
         self.port = port
+        self.channel = None
+        self.stub = None
 
         self.message_thread = None
         self.message_worker = None
         self.messages = None
 
         # Initialize connection for main GUI thread
-        if not self.debug:
-            try:
-                self.sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-                self.sock.connect((self.host, self.port))
-            except ConnectionRefusedError:
-                print("Connection refused. Please check if the server is running.")
-                exit(1)
+        try:
+            server_addr = f"{self.host}:{self.port}"
+            self.channel = grpc.insecure_channel(server_addr)
+            self.stub = ChatServerStub(self.channel)
+        except Exception as e:
+            print("Connection refused. Please check if the server is running.")
+            print(e)
+            exit(1)
 
         # Register event handlers
         self.mainframe.login.login_button.clicked.connect(self.login_user)
@@ -87,9 +78,9 @@ class UserSession:
         socket connection to the server. This method should be called when the
         client is finished interacting with the server.
         """
-
-        if not self.debug:
-            self.sock.close()
+        self.channel.close()
+        self.channel = None
+        self.stub = None
 
     def authenticate_user(self, action):
         """
@@ -116,38 +107,15 @@ class UserSession:
         if not username.isalnum():
             QMessageBox.critical(self.window, 'Error', "Username must be alphanumeric")
             return
-
-
+        
         # Hash the password
         hashed_password = hash_string(password)
 
-        if self.debug and username == "admin" and password == "pass":  # Dummy default password
-            # hide the login frame
-            self.mainframe.login.hide()
-            # show logged in frame
-            self.mainframe.logged_in.show()
-            self.mainframe.central.show()
-            self.mainframe.view_messages.show()
-            self.mainframe.logged_in.update_user_label(username)
-            self.username = username
+        response = self.stub.Authenticate(AuthRequest(action_type=action, username=username, password=hashed_password))
+
+        if response.status == Status.ERROR:
+            QMessageBox.critical(self.window, 'Error', response.error_message)
             return
-        elif self.debug:
-            QMessageBox.critical(self.window, 'Error', "Authentication failed")
-            return
-
-        auth_request = api.AuthRequest(action_type=action,
-                                       username=username,
-                                       password=hashed_password)
-        self.sock.sendall(auth_request.pack())
-
-        header, recvd = recv_resp_bytes(self.sock)
-
-        if ResponseType(header.header_type) == ResponseType.ERROR:
-            resp = ErrorResponse.unpack(recvd)
-            QMessageBox.critical(self.window, 'Error', resp.message)
-            return
-
-        api.AuthResponse.unpack(recvd)
 
         print("Authentication successful")
 
@@ -163,10 +131,10 @@ class UserSession:
         self.start_logged_session()
 
     def sign_up(self):
-        self.authenticate_user(api.AuthRequest.ActionType.CREATE_ACCOUNT)
+        self.authenticate_user(AuthRequest.ActionType.CREATE_ACCOUNT)
 
     def login_user(self):
-        self.authenticate_user(api.AuthRequest.ActionType.LOGIN)
+        self.authenticate_user(AuthRequest.ActionType.LOGIN)
 
     def sign_out(self):
         """
@@ -174,8 +142,7 @@ class UserSession:
         If the client is not in debug mode, stop the session.
         :return: None
         """
-        if not self.debug:
-            self.stop_logged_session()
+        self.stop_logged_session()
         print("Signing out...")
 
         # Hide logged in frame
@@ -202,20 +169,15 @@ class UserSession:
 
         :return: None
         """
-        delete_user_request = api.DeleteUserRequest(username=self.username)
-        self.sock.sendall(delete_user_request.pack())
-
-        header, recvd = recv_resp_bytes(self.sock)
-
-        if ResponseType(header.header_type) == ResponseType.ERROR:
-            resp = ErrorResponse.unpack(recvd)
-            QMessageBox.critical(self.window, 'Error', resp.message)
-            return
-
-        api.DeleteUserResponse.unpack(recvd)
-
-        print("Account deleted")
         self.sign_out()
+        
+        response = self.stub.DeleteUser(DeleteUserRequest(username=self.username))
+
+        if response.status == Status.ERROR:
+            QMessageBox.critical(self.window, 'Error', response.error_message)
+            return
+        print("Account deleted")
+        
 
     def list_account_event(self):
         """
@@ -232,21 +194,14 @@ class UserSession:
         """
         search_string = self.mainframe.central.list_account.search_entry.text()
 
-        list_account_request = api.ListUsersRequest(username=self.username,
-                                                    pattern=search_string)
-        self.sock.sendall(list_account_request.pack())
+        response = self.stub.ListUsers(ListUsersRequest(username=self.username, pattern=search_string))
 
-        header, recvd = recv_resp_bytes(self.sock)
-
-        if ResponseType(header.header_type) == ResponseType.ERROR:
-            resp = ErrorResponse.unpack(recvd)
-            QMessageBox.critical(self.window, 'Error', resp.message)
+        if response.status == Status.ERROR:
+            QMessageBox.critical(self.window, 'Error', response.error_message)
             return
-
-        list_account_response = api.ListUsersResponse.unpack(recvd)
-
+        
         self.mainframe.central.list_account.account_list.clear()
-        for idx, user in enumerate(list_account_response.usernames):
+        for idx, user in enumerate(response.usernames):
             self.mainframe.central.list_account.account_list.insertItem(idx, user)
 
     def send_message_event(self):
@@ -265,20 +220,16 @@ class UserSession:
         recipient = self.mainframe.central.send_message.recipient_entry.text()
         message_body = self.mainframe.central.send_message.message_text.toPlainText()
 
-        msg = Message(sender=self.username, receiver=recipient, body=message_body)
+        id = uuid.uuid4().bytes
+        timestamp = time.time()
 
-        send_message_request = api.SendMessageRequest(username=self.username,
-                                                      message=msg)
-        self.sock.sendall(send_message_request.pack())
+        message = Message(id=id, sender=self.username, recipient=recipient, body=message_body,timestamp=timestamp, read=False)
 
-        header, recvd = recv_resp_bytes(self.sock)
+        response = self.stub.SendMessage(SendMessageRequest(username=self.username, message=message))
 
-        if ResponseType(header.header_type) == ResponseType.ERROR:
-            resp = ErrorResponse.unpack(recvd)
-            QMessageBox.critical(self.window, 'Error', resp.message)
+        if response.status == Status.ERROR:
+            QMessageBox.critical(self.window, 'Error', response.error_message)
             return
-
-        api.SendMessageResponse.unpack(recvd)
 
         clear_all_fields(self.mainframe.central.send_message)
 
@@ -295,8 +246,8 @@ class UserSession:
         :return: None
         """
         self.messages = messages
-        self.messages.sort(key=lambda x: x.ts, reverse=True)
-        self.mainframe.view_messages.update_message_list(messages)
+        self.messages.sort(key=lambda x: x.timestamp, reverse=True)
+        self.mainframe.view_messages.update_message_list(self.messages)
 
     def delete_messages_event(self):
         """
@@ -321,18 +272,12 @@ class UserSession:
             msg = item.data(Qt.UserRole)
             ids_to_delete.append(msg.id)
 
-        delete_messages_request = api.DeleteMessagesRequest(username=self.username,
-                                                            message_ids=ids_to_delete)
-        self.sock.sendall(delete_messages_request.pack())
+        response = self.stub.DeleteMessages(DeleteMessagesRequest(username=self.username, ids=ids_to_delete))
 
-        header, recvd = recv_resp_bytes(self.sock)
-
-        if ResponseType(header.header_type) == ResponseType.ERROR:
-            resp = ErrorResponse.unpack(recvd)
-            QMessageBox.critical(self.window, 'Error', resp.message)
+        if response.status == Status.ERROR:
+            QMessageBox.critical(self.window, 'Error', response.error_message)
             return
 
-        api.DeleteMessagesResponse.unpack(recvd)
 
     def read_messages_event(self):
         """
@@ -366,18 +311,11 @@ class UserSession:
         ids = ids[-num_to_read:]
 
         # make read message request
-        read_messages_request = api.ReadMessagesRequest(username=self.username,
-                                                        message_ids=ids)
-        self.sock.sendall(read_messages_request.pack())
+        response = self.stub.ReadMessages(ReadMessagesRequest(username=self.username, ids=ids))
 
-        header, recvd = recv_resp_bytes(self.sock)
-
-        if ResponseType(header.header_type) == ResponseType.ERROR:
-            resp = ErrorResponse.unpack(recvd)
-            QMessageBox.critical(self.window, 'Error', resp.message)
+        if response.status == Status.ERROR:
+            QMessageBox.critical(self.window, 'Error', response.error_message)
             return
-
-        api.ReadMessagesResponse.unpack(recvd)
 
     def start_logged_session(self):
         """
@@ -454,7 +392,8 @@ class MessageUpdaterWorker(QObject):
         self.username = username
 
         self.running = False
-        self.sock = None
+        self.channel = None
+        self.stub = None
 
     @pyqtSlot()
     def run(self):
@@ -466,29 +405,18 @@ class MessageUpdaterWorker(QObject):
         """
         self.running = True
 
-        # 1) Create and connect a new socket in this worker thread.
-        self.sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-        try:
-            self.sock.connect((self.host, self.port))
-            print("[MessageUpdaterWorker] Connected to server on separate socket.")
-        except ConnectionRefusedError:
-            print("[MessageUpdaterWorker] Could not connect to server.")
-            self.running = False
+        self.channel = grpc.insecure_channel(f"{self.host}:{self.port}")
+        self.stub = ChatServerStub(self.channel)
 
         # 2) Start polling loop
         while self.running:
             try:
-                req = api.GetMessagesRequest(username=self.username)
-                self.sock.sendall(req.pack())
+                response = self.stub.GetMessages(GetMessagesRequest(username=self.username))
 
-                header, recvd = recv_resp_bytes(self.sock)
-                if ResponseType(header.header_type) == ResponseType.ERROR:
-                    resp = ErrorResponse.unpack(recvd)
-                    print(f"[MessageUpdaterWorker] Error: {resp.message}")
-                    return
-
-                response = api.GetMessagesResponse.unpack(recvd)
-                self.messages_received.emit(response.messages)
+                if response.status == Status.ERROR:
+                    print(f"[MessageUpdaterWorker] Error: {response.error_message}")
+                else:
+                    self.messages_received.emit(response.messages)
 
             except Exception as e:
                 print(f"[MessageUpdaterWorker] Error: {e}")
@@ -499,9 +427,9 @@ class MessageUpdaterWorker(QObject):
             time.sleep(GUI_REFRESH_RATE)
 
         # Cleanup
-        if self.sock:
-            self.sock.close()
-            self.sock = None
+        if self.channel:
+            self.channel.close()
+            self.stub = None
         print("[MessageUpdaterWorker] Worker thread stopped.")
 
     def stop(self):
@@ -572,7 +500,6 @@ def main():
     parser = argparse.ArgumentParser(allow_abbrev=False, description="GUI for the Message App Design Exercise")
     parser.add_argument("host", type=str, metavar='host', help="The host on which the server is running")
     parser.add_argument("port", type=int, metavar='port', help="The port at which the server is listening")
-    parser.add_argument("--debug", action="store_true", help="Enable debug mode")
     args = parser.parse_args()
 
     # load GUI
@@ -581,18 +508,11 @@ def main():
     mainframe = ui.MainFrame()
     window = create_window(mainframe)
 
-    print(args)
-
-    # hide central frames
-    if not args.debug:
-        print("Trying to connect to server...")
-        mainframe.logged_in.hide()
-        mainframe.central.hide()
-        mainframe.view_messages.hide()
-        user_session = UserSession(args.host, args.port, mainframe, window, False)
-    else:
-        mainframe.view_messages.update_message_list(SAMPLE_DATA)
-        user_session = UserSession(args.host, args.port, mainframe, window, True)
+    print("Trying to connect to server...")
+    mainframe.logged_in.hide()
+    mainframe.central.hide()
+    mainframe.view_messages.hide()
+    user_session = UserSession(args.host, args.port, mainframe, window)
 
     # display GUI
     window.show()

@@ -7,7 +7,6 @@ from PyQt5.QtGui import QFont, QIntValidator, QValidator
 from PyQt5.QtWidgets import QPushButton
 from PyQt5.QtWidgets import QLineEdit
 
-from entity import Message
 
 
 class ViewMessage(QWidget):
@@ -50,7 +49,7 @@ class ViewMessage(QWidget):
 
         self.setLayout(self.frame_layout)
 
-    def update_message_list(self, messages: list[Message]):
+    def update_message_list(self, messages: list):
         # Get the set if message IDs of selected messages
         selected_ids = set()
         for item in self.message_list.selectedItems():
@@ -69,7 +68,7 @@ class ViewMessage(QWidget):
                 continue
 
             # Convert timestamp to a readable string
-            time_str = datetime.fromtimestamp(message.ts).strftime('%Y-%m-%d %H:%M:%S')
+            time_str = datetime.fromtimestamp(message.timestamp).strftime('%Y-%m-%d %H:%M:%S')
 
             # Create a display string
             display_text = f"[{time_str}] {message.sender}: {message.body}"
