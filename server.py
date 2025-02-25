@@ -40,33 +40,36 @@ class ChatServer(ChatServicer):
         :param context: The servicer context.
         :rtype: AuthResponse
         """
+        self.inbound_volume += len(request.SerializeToString())
+
         username, password = request.username, request.password
-
-        if DEBUG:
-            print(f"Received AuthRequest with action type: {request.action_type} for user: {username}")
-
         match request.action_type:
             case AuthRequest.ActionType.CREATE_ACCOUNT:
                 if username in self.users:
-                    return AuthResponse(status=Status.ERROR,
+                    resp = AuthResponse(status=Status.ERROR,
                                         error_message=f"Create account failed: user \"{username}\" already exists.")
                 else:
                     self.users[username] = User(username=username, password=password)
+                    resp = AuthResponse(status=Status.SUCCESS)
             case AuthRequest.ActionType.LOGIN:
                 if username not in self.users:
-                    return AuthResponse(status=Status.ERROR,
+                    resp = AuthResponse(status=Status.ERROR,
                                         error_message=f"Login failed: user \"{username}\" does not exist.")
                 elif password != self.users[username].password:
-                    return AuthResponse(status=Status.ERROR,
+                    resp = AuthResponse(status=Status.ERROR,
                                         error_message=f"Login failed: incorrect password.")
+                else:
+                    resp = AuthResponse(status=Status.SUCCESS)
             case _:
                 print("Unknown AuthRequest action type.")
                 exit(1)
 
+        self.outbound_volume += len(resp.SerializeToString())
+
         if DEBUG:
             self.log()
 
-        return AuthResponse(status=Status.SUCCESS)
+        return resp
 
     def GetMessages(self, request: GetMessagesRequest, context: grpc.ServicerContext) -> GetMessagesResponse:
         """
@@ -78,6 +81,8 @@ class ChatServer(ChatServicer):
         :param context: The servicer context.
         :rtype: GetMessagesResponse
         """
+        self.inbound_volume += len(request.SerializeToString())
+
         username = request.username
         assert username in self.users
 
@@ -85,8 +90,14 @@ class ChatServer(ChatServicer):
         message_ids = self.users[username].message_ids
         messages = [self.messages[message_id] for message_id in message_ids]
 
-        return GetMessagesResponse(status=Status.SUCCESS,
+        resp = GetMessagesResponse(status=Status.SUCCESS,
                                    messages=messages)
+        self.outbound_volume += len(resp.SerializeToString())
+
+        if DEBUG:
+            self.log()
+
+        return resp
 
     def ListUsers(self, request: ListUsersRequest, context: grpc.ServicerContext) -> ListUsersResponse:
         """
@@ -98,17 +109,19 @@ class ChatServer(ChatServicer):
         :param context: The servicer context.
         :rtype: GetMessagesResponse
         """
-        username, pattern = request.username, request.pattern
+        self.inbound_volume += len(request.SerializeToString())
 
+        username, pattern = request.username, request.pattern
         matches = [username for username in self.users if fnmatch(username, pattern)]
-        if DEBUG:
-            print(f"Pattern {pattern} matched users: {matches}")
+
+        resp = ListUsersResponse(status=Status.SUCCESS,
+                                 usernames=matches)
+        self.outbound_volume += len(resp.SerializeToString())
 
         if DEBUG:
             self.log()
 
-        return ListUsersResponse(status=Status.SUCCESS,
-                                 usernames=matches)
+        return resp
 
     def SendMessage(self, request: SendMessageRequest, context: grpc.ServicerContext) -> SendMessageResponse:
         """
@@ -122,6 +135,8 @@ class ChatServer(ChatServicer):
         :param context: The servicer context.
         :rtype: SendMessageResponse
         """
+        self.inbound_volume += len(request.SerializeToString())
+
         username, message = request.username, request.message
 
         # Assert that the message does not already exist and the request user matches the sender
@@ -140,10 +155,13 @@ class ChatServer(ChatServicer):
         recipient = self.users[message.recipient]
         recipient.add_message(message_id)
 
+        resp = SendMessageResponse(status=Status.SUCCESS)
+        self.outbound_volume += len(resp.SerializeToString())
+
         if DEBUG:
             self.log()
 
-        return SendMessageResponse(status=Status.SUCCESS)
+        return resp
 
     def ReadMessages(self, request: ReadMessagesRequest, context: grpc.ServicerContext) -> ReadMessagesResponse:
         """
@@ -158,6 +176,8 @@ class ChatServer(ChatServicer):
         :param context: The servicer context.
         :rtype: ReadMessagesResponse
         """
+        self.inbound_volume += len(request.SerializeToString())
+
         username, message_ids = request.username, request.message_ids
 
         # Set the read flag for each message in the request
@@ -175,10 +195,13 @@ class ChatServer(ChatServicer):
             assert not message.read
             message.read = True
 
+        resp = ReadMessagesResponse(status=Status.SUCCESS)
+        self.outbound_volume += len(resp.SerializeToString())
+
         if DEBUG:
             self.log()
 
-        return ReadMessagesResponse(status=Status.SUCCESS)
+        return resp
 
     def DeleteMessages(self, request: DeleteMessagesRequest, context: grpc.ServicerContext) -> DeleteMessagesResponse:
         """
@@ -193,6 +216,8 @@ class ChatServer(ChatServicer):
         :param context: The servicer context.
         :rtype: DeleteMessagesResponse
         """
+        self.inbound_volume += len(request.SerializeToString())
+
         username, message_ids = request.username, request.message_ids
 
         # Get the recipient
@@ -216,10 +241,13 @@ class ChatServer(ChatServicer):
             # Delete the message
             del self.messages[message_id]
 
+        resp = DeleteMessagesResponse(status=Status.SUCCESS)
+        self.outbound_volume += len(resp.SerializeToString())
+
         if DEBUG:
             self.log()
 
-        return DeleteMessagesResponse(status=Status.SUCCESS)
+        return resp
 
     def DeleteUser(self, request: DeleteUserRequest, context: grpc.ServicerContext) -> DeleteUserResponse:
         """
@@ -234,6 +262,8 @@ class ChatServer(ChatServicer):
         :param context: The servicer context.
         :rtype: DeleteUserResponse
         """
+        self.inbound_volume += len(request.SerializeToString())
+
         username = request.username
 
         # Get the user
@@ -248,10 +278,13 @@ class ChatServer(ChatServicer):
         # Delete the user
         del self.users[username]
 
+        resp = DeleteUserResponse(status=Status.SUCCESS)
+        self.outbound_volume += len(resp.SerializeToString())
+
         if DEBUG:
             self.log()
 
-        return DeleteUserResponse(status=Status.SUCCESS)
+        return resp
 
     def log(self):
         """Utility function that logs the state of the server."""
@@ -284,6 +317,7 @@ def main():
 
     print(f"Server listening on {server_addr}")
     server.wait_for_termination()
+    server.log()
 
 
 if __name__ == "__main__":
