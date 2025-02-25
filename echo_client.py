@@ -6,7 +6,7 @@ from protos.chat_pb2_grpc import *
 def main():
     server_addr = f"localhost:{SERVER_PORT}"
     with grpc.insecure_channel(server_addr) as channel:
-        stub = ChatServerStub(channel)
+        stub = ChatStub(channel)
 
         while True:
             s = input("> ")

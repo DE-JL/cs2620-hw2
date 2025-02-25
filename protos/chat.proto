@@ -12,7 +12,7 @@ syntax = "proto3";
 package chat;
 
 /* Chat server interface */
-service ChatServer {
+service Chat {
     rpc Echo(EchoRequest) returns (EchoResponse) {}
 
     rpc Authenticate(AuthRequest) returns (AuthResponse) {}

@@ -48,7 +48,7 @@ class UserSession:
         try:
             server_addr = f"{self.host}:{self.port}"
             self.channel = grpc.insecure_channel(server_addr)
-            self.stub = ChatServerStub(self.channel)
+            self.stub = ChatStub(self.channel)
         except Exception as e:
             print("Connection refused. Please check if the server is running.")
             print(e)
@@ -402,7 +402,7 @@ class MessageUpdaterWorker(QObject):
         self.running = True
 
         self.channel = grpc.insecure_channel(f"{self.host}:{self.port}")
-        self.stub = ChatServerStub(self.channel)
+        self.stub = ChatStub(self.channel)
 
         # 2) Start polling loop
         while self.running:

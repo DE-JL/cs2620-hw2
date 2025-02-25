@@ -9,7 +9,6 @@ Every request will have a hardcoded expectation response object.
 The test case asserts that all responses match their expectations.
 """
 
-import grpc
 import uuid
 import pytest
 import subprocess
@@ -17,6 +16,7 @@ import subprocess
 from protos.chat_pb2 import *
 from protos.chat_pb2_grpc import *
 from config import LOCALHOST, SERVER_PORT
+
 
 @pytest.fixture(scope="session", autouse=True)
 def start_server():
@@ -53,10 +53,11 @@ def start_server():
 def stub():
     """Fixture to create and close a GRPC channels connection before and after each test."""
     channel = grpc.insecure_channel(f"{LOCALHOST}:{SERVER_PORT}")
-    stub = ChatServerStub(channel)
+    stub = ChatStub(channel)
     print("client connected to the server")
     yield stub
     channel.close()
+
 
 def test_auth(stub):
     """

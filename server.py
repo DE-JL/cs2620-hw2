@@ -10,7 +10,7 @@ from entity import User
 from utils import get_ipaddr
 
 
-class ChatServiceServicer(ChatServerServicer):
+class ChatServer(ChatServicer):
     """Main server class that manages users and message state for all clients."""
 
     def __init__(self):
@@ -266,7 +266,7 @@ class ChatServiceServicer(ChatServerServicer):
 def main():
     # Initialize the server
     server = grpc.server(futures.ThreadPoolExecutor(max_workers=1))
-    add_ChatServerServicer_to_server(ChatServiceServicer(), server)
+    add_ChatServicer_to_server(ChatServer(), server)
 
     # Check for public visibility
     if not PUBLIC_STATUS:
