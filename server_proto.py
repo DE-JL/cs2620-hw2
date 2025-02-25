@@ -39,8 +39,11 @@ class ChatServiceServicer(ChatServerServicer):
         :param context: The servicer context.
         :rtype: AuthResponse
         """
-
         username, password = request.username, request.password
+
+        if DEBUG:
+            print(f"Received AuthRequest with action type: {request.action_type} for user: {username}")
+
         match request.action_type:
             case AuthRequest.ActionType.CREATE_ACCOUNT:
                 if username in self.users:
@@ -59,7 +62,7 @@ class ChatServiceServicer(ChatServerServicer):
                 print("Unknown AuthRequest action type.")
                 exit(1)
 
-        return AuthResponse(status=Status.OK)
+        return AuthResponse(status=Status.SUCCESS)
 
     def GetMessages(self, request: GetMessagesRequest, context: grpc.ServicerContext) -> GetMessagesResponse:
         """
@@ -80,7 +83,7 @@ class ChatServiceServicer(ChatServerServicer):
         message_ids = self.users[username].message_ids
         messages = [self.messages[message_id] for message_id in message_ids]
 
-        return GetMessagesResponse(status=Status.OK,
+        return GetMessagesResponse(status=Status.SUCCESS,
                                    messages=messages)
 
     def ListUsers(self, request: ListUsersRequest, context: grpc.ServicerContext) -> ListUsersResponse:
@@ -99,7 +102,7 @@ class ChatServiceServicer(ChatServerServicer):
         if DEBUG:
             print(f"Pattern {pattern} matched users: {matches}")
 
-        return ListUsersResponse(status=Status.OK,
+        return ListUsersResponse(status=Status.SUCCESS,
                                  usernames=matches)
 
     def SendMessage(self, request: SendMessageRequest, context: grpc.ServicerContext) -> SendMessageResponse:
@@ -107,7 +110,7 @@ class ChatServiceServicer(ChatServerServicer):
         This function handles all send messages requests.
 
         It inserts the message into the map of message IDs to message objects.
-        Then it inserts the message ID into the receiver's message inbox.
+        Then it inserts the message ID into the recipient's message inbox.
         On success, it responds with a blank SendMessageResponse() object.
 
         :param request: The SendMessageRequest object.
@@ -128,11 +131,11 @@ class ChatServiceServicer(ChatServerServicer):
         message_id = uuid.UUID(bytes=message.id)
         self.messages[message_id] = message
 
-        # Add the message to the receiver's inbox
-        receiver = self.users[message.recipient]
-        receiver.add_message(message_id)
+        # Add the message to the recipient's inbox
+        recipient = self.users[message.recipient]
+        recipient.add_message(message_id)
 
-        return SendMessageResponse(status=Status.OK)
+        return SendMessageResponse(status=Status.SUCCESS)
 
     def ReadMessages(self, request: ReadMessagesRequest, context: grpc.ServicerContext) -> ReadMessagesResponse:
         """
@@ -157,14 +160,14 @@ class ChatServiceServicer(ChatServerServicer):
 
             message = self.messages[message_id]
 
-            # Assert that the receiver matches the request username
+            # Assert that the recipient matches the request username
             assert message.recipient == username
 
             # Mark the message as read
             assert not message.read
             message.read = True
 
-        return ReadMessagesResponse(status=Status.OK)
+        return ReadMessagesResponse(status=Status.SUCCESS)
 
     def DeleteMessages(self, request: DeleteMessagesRequest, context: grpc.ServicerContext) -> DeleteMessagesResponse:
         """
@@ -172,7 +175,7 @@ class ChatServiceServicer(ChatServerServicer):
 
         It iterates over a list of message IDs.
         For each message ID, it gets the message object corresponding to the message ID.
-        It deletes the message object as well as the ID from the receiver's inbox.
+        It deletes the message object as well as the ID from the recipient's inbox.
         On success, it responds with a blank DeleteMessagesResponse() object.
 
         :param request: The DeleteMessagesRequest object.
@@ -181,8 +184,8 @@ class ChatServiceServicer(ChatServerServicer):
         """
         username, message_ids = request.username, request.message_ids
 
-        # Get the receiver
-        receiver = self.users[username]
+        # Get the recipient
+        recipient = self.users[username]
 
         # Delete the messages one by one
         for message_id in message_ids:
@@ -193,16 +196,16 @@ class ChatServiceServicer(ChatServerServicer):
             # Get the message to delete
             message = self.messages[message_id]
 
-            # Assert that the receiver matches the request username
+            # Assert that the recipient matches the request username
             assert message.recipient == username
 
-            # Delete the message from the receiver
-            receiver.delete_message(message_id)
+            # Delete the message from the recipient
+            recipient.delete_message(message_id)
 
             # Delete the message
             del self.messages[message_id]
 
-        return DeleteMessagesResponse(status=Status.OK)
+        return DeleteMessagesResponse(status=Status.SUCCESS)
 
     def DeleteUser(self, request: DeleteUserRequest, context: grpc.ServicerContext) -> DeleteUserResponse:
         """
@@ -231,7 +234,7 @@ class ChatServiceServicer(ChatServerServicer):
         # Delete the user
         del self.users[username]
 
-        return DeleteUserResponse(status=Status.OK)
+        return DeleteUserResponse(status=Status.SUCCESS)
 
     def log(self):
         """Utility function that logs the state of the server."""
