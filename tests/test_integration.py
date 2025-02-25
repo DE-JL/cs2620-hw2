@@ -12,60 +12,53 @@ The test case asserts that all responses match their expectations.
 import grpc
 import uuid
 import pytest
-import time
 import subprocess
 
 from protos.chat_pb2 import *
 from protos.chat_pb2_grpc import *
 from config import LOCALHOST, SERVER_PORT
 
-# @pytest.fixture(scope="session", autouse=True)
-# def start_server():
-#     """Start the server before tests and ensure it shuts down after."""
-#     print("\nStarting server...")
-#
-#     # Start the server process
-#     server_process = subprocess.Popen(["python", "server.py"], stdout=subprocess.PIPE, stderr=subprocess.PIPE)
-#
-#     # Wait for server to be ready (adjust timeout if necessary)
-#     timeout = 5
-#     start_time = time.time()
-#     while time.time() - start_time < timeout:
-#         try:
-#             # Try connecting to see if server is up
-#             sock = socket.create_connection((LOCALHOST, SERVER_PORT), timeout=1)
-#             sock.close()
-#             print("Server is ready!")
-#             break
-#         except (ConnectionRefusedError, OSError):
-#             time.sleep(1)
-#     else:
-#         server_process.kill()
-#         pytest.exit("Server failed to start within timeout.")
-#
-#     # Tests run after this
-#     yield
-#
-#     print("\nStopping server...")
-#     server_process.terminate()
-#     server_process.wait()
-#     print("Server stopped.")
-#
-#
-# @pytest.fixture(scope="session")
-# def sock():
-#     """Fixture to create and close a socket connection before and after each test."""
-#     client_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-#     client_socket.connect((LOCALHOST, SERVER_PORT))
-#     yield client_socket  # This is what gets passed into test functions
-#     client_socket.close()  # Cleanup after each test
+@pytest.fixture(scope="session", autouse=True)
+def start_server():
+    """Start the server before tests and ensure it shuts down after."""
+    print("\nStarting server...")
 
-channel = grpc.insecure_channel(f"{LOCALHOST}:{SERVER_PORT}")
-stub = ChatServerStub(channel)
-print("client connected to the server")
+    # Start the server process
+    server_process = subprocess.Popen(
+        ["python", "server.py"],
+        stdout=subprocess.PIPE,
+        stderr=subprocess.PIPE
+    )
+
+    # Wait for server to be ready (adjust timeout if necessary)
+    channel = grpc.insecure_channel(f"{LOCALHOST}:{SERVER_PORT}")
+    try:
+        # This will block until the channel is ready or timeout occurs
+        grpc.channel_ready_future(channel).result(timeout=5)
+        print("Server is ready!")
+    except grpc.FutureTimeoutError:
+        server_process.kill()
+        pytest.exit("Server failed to start within timeout.")
+
+    # Tests run after this
+    yield
+
+    print("\nStopping server...")
+    server_process.terminate()
+    server_process.wait()
+    print("Server stopped.")
 
 
-def test_auth():
+@pytest.fixture()
+def stub():
+    """Fixture to create and close a GRPC channels connection before and after each test."""
+    channel = grpc.insecure_channel(f"{LOCALHOST}:{SERVER_PORT}")
+    stub = ChatServerStub(channel)
+    print("client connected to the server")
+    yield stub
+    channel.close()
+
+def test_auth(stub):
     """
     This test case tests the following:
     1. Log in to an account that doesn't exist.
@@ -117,7 +110,7 @@ def test_auth():
     # ========================================================================================== #
 
 
-def test_send_and_get():
+def test_send_and_get(stub):
     """
     This test case tests the following:
     1. Send a message to a user that doesn't exist.
@@ -196,7 +189,7 @@ def test_send_and_get():
     # ========================================================================================== #
 
 
-def test_list_users():
+def test_list_users(stub):
     """
     This test case tests the following:
     1. List all users of the form user*.
@@ -220,7 +213,7 @@ def test_list_users():
     # ========================================================================================== #
 
 
-def test_read_messages():
+def test_read_messages(stub):
     """
     This test case tests the following:
     1. Get the messages for user2 and assert that they are unread.
@@ -257,7 +250,7 @@ def test_read_messages():
     # ========================================================================================== #
 
 
-def test_delete_messages():
+def test_delete_messages(stub):
     """
     This test case tests the following:
     1. Get the messages for user2.
@@ -291,7 +284,7 @@ def test_delete_messages():
     # ========================================================================================== #
 
 
-def test_delete_user():
+def test_delete_user(stub):
     """
     This test case tests the following:
     1. Send a message to user2 so that it has a non-empty inbox.
@@ -355,15 +348,3 @@ def test_delete_user():
     resp = stub.SendMessage(req)
     assert resp == exp
     # ========================================================================================== #
-
-
-if __name__ == '__main__':
-    # Connect to the server
-    test_auth()
-    test_send_and_get()
-    test_list_users()
-    test_read_messages()
-    test_delete_messages()
-    test_delete_user()
-
-    channel.close()
