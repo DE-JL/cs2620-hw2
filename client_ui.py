@@ -169,9 +169,11 @@ class UserSession:
 
         :return: None
         """
+        user_to_delete = self.username
+
         self.sign_out()
         
-        response = self.stub.DeleteUser(DeleteUserRequest(username=self.username))
+        response = self.stub.DeleteUser(DeleteUserRequest(username=user_to_delete))
 
         if response.status == Status.ERROR:
             QMessageBox.critical(self.window, 'Error', response.error_message)
@@ -272,7 +274,7 @@ class UserSession:
             msg = item.data(Qt.UserRole)
             ids_to_delete.append(msg.id)
 
-        response = self.stub.DeleteMessages(DeleteMessagesRequest(username=self.username, ids=ids_to_delete))
+        response = self.stub.DeleteMessages(DeleteMessagesRequest(username=self.username, message_ids=ids_to_delete))
 
         if response.status == Status.ERROR:
             QMessageBox.critical(self.window, 'Error', response.error_message)
@@ -311,7 +313,7 @@ class UserSession:
         ids = ids[-num_to_read:]
 
         # make read message request
-        response = self.stub.ReadMessages(ReadMessagesRequest(username=self.username, ids=ids))
+        response = self.stub.ReadMessages(ReadMessagesRequest(username=self.username, message_ids=ids))
 
         if response.status == Status.ERROR:
             QMessageBox.critical(self.window, 'Error', response.error_message)
@@ -416,7 +418,7 @@ class MessageUpdaterWorker(QObject):
                 if response.status == Status.ERROR:
                     print(f"[MessageUpdaterWorker] Error: {response.error_message}")
                 else:
-                    self.messages_received.emit(response.messages)
+                    self.messages_received.emit(list(response.messages))
 
             except Exception as e:
                 print(f"[MessageUpdaterWorker] Error: {e}")
