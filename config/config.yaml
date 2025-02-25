@@ -1,5 +1,5 @@
 network:
-    public_status: false
+    public_status: true
     interface: en0
     localhost: localhost
     server_port: 8000

@@ -5,8 +5,9 @@ from fnmatch import fnmatch
 
 from chat_pb2 import *
 from chat_pb2_grpc import *
-from config import DEBUG, SERVER_PORT
+from config import DEBUG, LOCALHOST, PUBLIC_STATUS, SERVER_PORT
 from entity import User
+from utils import get_ipaddr
 
 
 class ChatServiceServicer(ChatServerServicer):
@@ -247,10 +248,21 @@ class ChatServiceServicer(ChatServerServicer):
 
 
 def main():
+    # Initialize the server
     server = grpc.server(futures.ThreadPoolExecutor(max_workers=1))
     add_ChatServerServicer_to_server(ChatServiceServicer(), server)
 
-    server_addr = f"localhost:{SERVER_PORT}"
+    # Check for public visibility
+    if not PUBLIC_STATUS:
+        host = LOCALHOST
+    else:
+        host = get_ipaddr()
+        if host is None:
+            print("Error: server IP address could not be found.")
+            exit(1)
+
+    # Bind the server to host:port
+    server_addr = f"{host}:{SERVER_PORT}"
     server.add_insecure_port(server_addr)
     server.start()
 
